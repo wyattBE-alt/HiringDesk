@@ -1,0 +1,934 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HiringDesk — AI Hiring Intelligence</title>
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#000000" />
+  <meta name="description" content="AI-powered resume matching and candidate ranking. Built for both sides of the hire." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <style>
+    /* ── Tokens ─────────────────────────────────────────── */
+    :root {
+      --bg:        #000;
+      --surface:   #0a0a0a;
+      --surface-2: #111;
+      --surface-3: #181818;
+      --text:      #fff;
+      --text-2:    #a0a0a0;
+      --muted:     #4a4a4a;
+      --line:      rgba(255,255,255,0.07);
+      --line-strong: rgba(255,255,255,0.12);
+      --blue:      #2563eb;
+      --blue-lt:   #60a5fa;
+      --blue-dim:  rgba(37,99,235,0.12);
+      --ease-out:  cubic-bezier(0.23, 1, 0.32, 1);
+      --font-d:    'Syne', system-ui, sans-serif;
+      --font-b:    'Inter', system-ui, sans-serif;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html { height: 100%; }
+
+    body {
+      font-family: var(--font-b);
+      font-size: 15px;
+      color: var(--text);
+      background: var(--bg);
+      -webkit-font-smoothing: antialiased;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── Dot grid background ────────────────────────────── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: radial-gradient(rgba(255,255,255,0.025) 1px, transparent 1px);
+      background-size: 28px 28px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ── Ambient blue glow ──────────────────────────────── */
+    .ambient {
+      position: fixed;
+      pointer-events: none;
+      z-index: 0;
+    }
+    .ambient-1 {
+      width: 700px;
+      height: 700px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(37,99,235,0.09) 0%, transparent 65%);
+      top: -200px;
+      left: -100px;
+      animation: drift-1 20s ease-in-out infinite alternate;
+    }
+    .ambient-2 {
+      width: 500px;
+      height: 500px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(37,99,235,0.06) 0%, transparent 65%);
+      bottom: -150px;
+      right: -80px;
+      animation: drift-2 25s ease-in-out infinite alternate;
+    }
+
+    @keyframes drift-1 {
+      from { transform: translate(0, 0); }
+      to   { transform: translate(60px, 40px); }
+    }
+    @keyframes drift-2 {
+      from { transform: translate(0, 0); }
+      to   { transform: translate(-50px, -30px); }
+    }
+
+    /* ── Layout ─────────────────────────────────────────── */
+    .page {
+      position: relative;
+      z-index: 1;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Nav ─────────────────────────────────────────────── */
+    .nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 22px 40px;
+      border-bottom: 1px solid var(--line);
+      backdrop-filter: blur(12px);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      animation: fade-down 500ms var(--ease-out) both;
+    }
+
+    .nav-logo {
+      font-family: var(--font-d);
+      font-weight: 800;
+      font-size: 1.2rem;
+      letter-spacing: -0.04em;
+      color: var(--text);
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .nav-link {
+      font-size: 0.82rem;
+      font-weight: 500;
+      color: var(--text-2);
+      text-decoration: none;
+      padding: 8px 14px;
+      border-radius: 999px;
+      transition: color 150ms var(--ease-out),
+                  background 150ms var(--ease-out);
+    }
+
+    @media (hover: hover) and (pointer: fine) {
+      .nav-link:hover {
+        color: var(--text);
+        background: var(--surface-2);
+      }
+    }
+
+    .nav-link-primary {
+      background: var(--blue);
+      color: #fff;
+      font-weight: 600;
+    }
+
+    @media (hover: hover) and (pointer: fine) {
+      .nav-link-primary:hover {
+        background: #1d4ed8;
+        color: #fff;
+      }
+    }
+
+    /* ── Main ────────────────────────────────────────────── */
+    .main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 80px 24px 60px;
+      gap: 64px;
+    }
+
+    /* ── Hero ────────────────────────────────────────────── */
+    .hero {
+      text-align: center;
+      max-width: 720px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .hero-eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.72rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--blue-lt);
+      font-weight: 600;
+      padding: 6px 14px;
+      border: 1px solid rgba(37,99,235,0.3);
+      border-radius: 999px;
+      background: var(--blue-dim);
+      animation: fade-up 500ms var(--ease-out) 60ms both;
+    }
+
+    .hero-eyebrow::before {
+      content: '';
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--blue-lt);
+      flex-shrink: 0;
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50%       { opacity: 0.4; transform: scale(0.7); }
+    }
+
+    .hero-heading {
+      font-family: var(--font-d);
+      font-weight: 800;
+      font-size: clamp(2.8rem, 6vw, 5rem);
+      letter-spacing: -0.05em;
+      line-height: 1.0;
+      color: var(--text);
+      animation: fade-up 600ms var(--ease-out) 120ms both;
+    }
+
+    .hero-heading em {
+      font-style: normal;
+      background: linear-gradient(135deg, var(--blue-lt) 0%, #a78bfa 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .hero-sub {
+      font-size: 1.05rem;
+      line-height: 1.7;
+      color: var(--text-2);
+      max-width: 52ch;
+      animation: fade-up 600ms var(--ease-out) 200ms both;
+    }
+
+    /* ── Choice cards ────────────────────────────────────── */
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 440px));
+      gap: 16px;
+      width: 100%;
+      max-width: 900px;
+    }
+
+    .choice-card {
+      --gx: 50%;
+      --gy: 50%;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      padding: 32px;
+      border-radius: 24px;
+      background: var(--surface);
+      border: 1px solid var(--line-strong);
+      text-decoration: none;
+      color: inherit;
+      overflow: hidden;
+      cursor: pointer;
+      will-change: transform;
+      /* Only transition non-transform properties — transform handled by JS */
+      transition: border-color 200ms var(--ease-out),
+                  box-shadow 200ms var(--ease-out);
+    }
+
+    .choice-card:nth-child(1) {
+      animation: fade-up 600ms var(--ease-out) 300ms both;
+    }
+
+    .choice-card:nth-child(2) {
+      animation: fade-up 600ms var(--ease-out) 400ms both;
+    }
+
+    /* Mouse-follow glow inside card — GPU composited */
+    .choice-card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(
+        circle at var(--gx) var(--gy),
+        rgba(37, 99, 235, 0.1) 0%,
+        transparent 55%
+      );
+      opacity: 0;
+      transition: opacity 300ms var(--ease-out);
+      pointer-events: none;
+    }
+
+    @media (hover: hover) and (pointer: fine) {
+      .choice-card:hover {
+        border-color: rgba(255,255,255,0.22);
+        box-shadow: 0 20px 60px rgba(0,0,0,0.5),
+                    0 0 0 1px rgba(37,99,235,0.2),
+                    inset 0 1px 0 rgba(255,255,255,0.06);
+      }
+
+      .choice-card:hover::before {
+        opacity: 1;
+      }
+    }
+
+    /* ── Card icon ───────────────────────────────────────── */
+    .card-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .card-icon-seeker {
+      background: rgba(37,99,235,0.12);
+      border: 1px solid rgba(37,99,235,0.2);
+    }
+
+    .card-icon-recruiter {
+      background: rgba(139,92,246,0.12);
+      border: 1px solid rgba(139,92,246,0.2);
+    }
+
+    .card-icon svg {
+      width: 22px;
+      height: 22px;
+    }
+
+    /* ── Card content ────────────────────────────────────── */
+    .card-body {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      flex: 1;
+    }
+
+    .card-label {
+      font-size: 0.62rem;
+      font-weight: 700;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .card-title {
+      font-family: var(--font-d);
+      font-weight: 800;
+      font-size: 1.7rem;
+      letter-spacing: -0.04em;
+      line-height: 1.1;
+      color: var(--text);
+    }
+
+    .card-desc {
+      font-size: 0.88rem;
+      line-height: 1.65;
+      color: var(--text-2);
+      max-width: 38ch;
+    }
+
+    /* ── Feature list ────────────────────────────────────── */
+    .card-features {
+      list-style: none;
+      display: grid;
+      gap: 8px;
+      margin-top: 4px;
+    }
+
+    .card-features li {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      font-size: 0.83rem;
+      color: var(--text-2);
+    }
+
+    .card-features li::before {
+      content: '';
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      background-size: contain;
+      background-repeat: no-repeat;
+      background-position: center;
+    }
+
+    .choice-card:nth-child(1) .card-features li::before {
+      background: rgba(37,99,235,0.15);
+      border: 1px solid rgba(37,99,235,0.3);
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' fill='none'%3E%3Cpath d='M2 6l3 3 5-5' stroke='%2360a5fa' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    }
+
+    .choice-card:nth-child(2) .card-features li::before {
+      background: rgba(139,92,246,0.15);
+      border: 1px solid rgba(139,92,246,0.3);
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' fill='none'%3E%3Cpath d='M2 6l3 3 5-5' stroke='%23a78bfa' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    }
+
+    /* ── Card CTA ────────────────────────────────────────── */
+    .card-footer {
+      padding-top: 20px;
+      border-top: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .card-cta {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.88rem;
+      font-weight: 600;
+      color: var(--text);
+      transition: gap 200ms var(--ease-out);
+    }
+
+    @media (hover: hover) and (pointer: fine) {
+      .choice-card:hover .card-cta {
+        gap: 12px;
+      }
+    }
+
+    .card-cta-arrow {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: transform 200ms var(--ease-out),
+                  background 200ms var(--ease-out);
+    }
+
+    .choice-card:nth-child(1) .card-cta-arrow {
+      background: rgba(37,99,235,0.15);
+      border: 1px solid rgba(37,99,235,0.25);
+    }
+
+    .choice-card:nth-child(2) .card-cta-arrow {
+      background: rgba(139,92,246,0.15);
+      border: 1px solid rgba(139,92,246,0.25);
+    }
+
+    @media (hover: hover) and (pointer: fine) {
+      .choice-card:nth-child(1):hover .card-cta-arrow {
+        transform: translateX(3px);
+        background: var(--blue);
+        border-color: var(--blue);
+      }
+      .choice-card:nth-child(2):hover .card-cta-arrow {
+        transform: translateX(3px);
+        background: #7c3aed;
+        border-color: #7c3aed;
+      }
+    }
+
+    .card-tag {
+      font-size: 0.65rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      padding: 4px 10px;
+      border-radius: 999px;
+    }
+
+    .card-tag-seeker {
+      background: var(--blue-dim);
+      color: var(--blue-lt);
+      border: 1px solid rgba(37,99,235,0.2);
+    }
+
+    .card-tag-recruiter {
+      background: rgba(139,92,246,0.1);
+      color: #a78bfa;
+      border: 1px solid rgba(139,92,246,0.2);
+    }
+
+    /* ── Stats bar ───────────────────────────────────────── */
+    .stats {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      border: 1px solid var(--line-strong);
+      border-radius: 16px;
+      overflow: hidden;
+      background: var(--surface);
+      animation: fade-up 600ms var(--ease-out) 500ms both;
+    }
+
+    .stat-item {
+      flex: 1;
+      padding: 20px 28px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      position: relative;
+    }
+
+    .stat-item + .stat-item::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 20%;
+      height: 60%;
+      width: 1px;
+      background: var(--line-strong);
+    }
+
+    .stat-num {
+      font-family: var(--font-d);
+      font-size: 1.8rem;
+      font-weight: 800;
+      letter-spacing: -0.04em;
+      color: var(--text);
+      line-height: 1;
+    }
+
+    .stat-label-text {
+      font-size: 0.78rem;
+      color: var(--muted);
+    }
+
+    /* ── Footer ──────────────────────────────────────────── */
+    .footer {
+      padding: 24px 40px;
+      border-top: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      z-index: 1;
+      position: relative;
+    }
+
+    .footer-copy {
+      font-size: 0.78rem;
+      color: var(--muted);
+    }
+
+    .footer-links {
+      display: flex;
+      gap: 20px;
+    }
+
+    .footer-link {
+      font-size: 0.78rem;
+      color: var(--muted);
+      text-decoration: none;
+      transition: color 150ms;
+    }
+
+    @media (hover: hover) and (pointer: fine) {
+      .footer-link:hover { color: var(--text-2); }
+    }
+
+    /* ── Entry animations ────────────────────────────────── */
+    @keyframes fade-up {
+      from { opacity: 0; transform: translateY(14px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes fade-down {
+      from { opacity: 0; transform: translateY(-8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── Click ripple ────────────────────────────────────── */
+    .ripple {
+      position: absolute;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.07);
+      transform: scale(0);
+      animation: ripple-out 500ms var(--ease-out) forwards;
+      pointer-events: none;
+    }
+
+    @keyframes ripple-out {
+      to { transform: scale(4); opacity: 0; }
+    }
+
+    /* ── Download section ────────────────────────────────── */
+
+    .download {
+      width: 100%;
+      max-width: 900px;
+      display: grid;
+      gap: 20px;
+      animation: fade-up 600ms var(--ease-out) 560ms both;
+    }
+
+    .download-header {
+      text-align: center;
+      display: grid;
+      gap: 6px;
+    }
+
+    .download-header h2 {
+      font-family: var(--font-d);
+      font-size: 1.4rem;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      color: var(--text);
+    }
+
+    .download-header p {
+      font-size: 0.86rem;
+      color: var(--muted);
+    }
+
+    .download-buttons {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .dl-btn {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 22px;
+      border-radius: 14px;
+      text-decoration: none;
+      border: 1px solid var(--line-strong);
+      background: var(--surface);
+      color: var(--text);
+      font-family: var(--font-b);
+      transition: border-color 180ms var(--ease-out),
+                  background 180ms var(--ease-out),
+                  transform 180ms var(--ease-out),
+                  box-shadow 180ms var(--ease-out);
+      cursor: pointer;
+      min-width: 200px;
+      position: relative;
+    }
+
+    .dl-btn.primary-dl {
+      border-color: rgba(37,99,235,0.4);
+      background: rgba(37,99,235,0.08);
+    }
+
+    @media (hover: hover) and (pointer: fine) {
+      .dl-btn:hover {
+        border-color: var(--line-focus);
+        transform: translateY(-2px);
+        box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+        background: var(--surface-2);
+      }
+      .dl-btn.primary-dl:hover {
+        border-color: rgba(37,99,235,0.6);
+        background: rgba(37,99,235,0.14);
+        box-shadow: 0 8px 32px rgba(37,99,235,0.2);
+      }
+    }
+
+    .dl-btn:active { transform: scale(0.97); }
+
+    .dl-btn-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      background: var(--surface-3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .dl-btn.primary-dl .dl-btn-icon {
+      background: rgba(37,99,235,0.15);
+    }
+
+    .dl-btn-text { display: grid; gap: 1px; text-align: left; }
+
+    .dl-btn-label {
+      font-size: 0.88rem;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .dl-btn-sub {
+      font-size: 0.72rem;
+      color: var(--muted);
+    }
+
+    .dl-btn-badge {
+      position: absolute;
+      top: -8px;
+      right: 12px;
+      background: var(--blue);
+      color: #fff;
+      font-size: 0.58rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 2px 7px;
+      border-radius: 999px;
+    }
+
+    /* ── Reduced motion ──────────────────────────────────── */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+
+    /* ── Responsive ──────────────────────────────────────── */
+    @media (max-width: 760px) {
+      .nav { padding: 16px 20px; }
+      .main { padding: 48px 16px 40px; gap: 48px; }
+      .hero-heading { font-size: 2.6rem; }
+      .cards { grid-template-columns: 1fr; }
+      .stats { flex-direction: column; }
+      .stat-item + .stat-item::before { display: none; }
+      .stat-item { border-top: 1px solid var(--line); width: 100%; }
+      .footer { flex-direction: column; gap: 12px; text-align: center; padding: 20px; }
+    }
+  </style>
+</head>
+
+<body>
+  <!-- Ambient glow blobs — decoration only, no interaction -->
+  <div class="ambient ambient-1" aria-hidden="true"></div>
+  <div class="ambient ambient-2" aria-hidden="true"></div>
+
+  <div class="page">
+    <!-- ── Nav ─────────────────────────────────────────────── -->
+    <nav class="nav">
+      <span class="nav-logo">HiringDesk</span>
+      <div class="nav-links">
+        <a href="/index.html" class="nav-link">Job Seekers</a>
+        <a href="/recruiter.html" class="nav-link">Recruiters</a>
+        <a href="/index.html" class="nav-link nav-link-primary">Get Started</a>
+      </div>
+    </nav>
+
+    <!-- ── Main ────────────────────────────────────────────── -->
+    <main class="main">
+
+      <!-- Hero -->
+      <section class="hero">
+        <p class="hero-eyebrow">AI Hiring Intelligence</p>
+        <h1 class="hero-heading">
+          The platform built<br>for <em>both sides</em> of the hire.
+        </h1>
+        <p class="hero-sub">
+          Match your resume to real jobs. Rank your candidate pool in seconds.
+          AI-powered scoring, gap analysis, and tailored bullets — one tool, both sides of the table.
+        </p>
+      </section>
+
+      <!-- Choice cards -->
+      <section class="cards" role="navigation" aria-label="Choose your role">
+
+        <!-- Job Seeker -->
+        <a class="choice-card" href="/index.html" id="card-seeker" aria-label="Job seekers — go to resume matcher">
+          <div class="card-icon card-icon-seeker" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="12" cy="8" r="3.5" stroke="#60a5fa" stroke-width="1.5"/>
+              <path d="M5 20c0-3.314 3.134-6 7-6s7 2.686 7 6" stroke="#60a5fa" stroke-width="1.5" stroke-linecap="round"/>
+              <circle cx="19" cy="9" r="2" stroke="#60a5fa" stroke-width="1.25"/>
+              <path d="M19 15c1.5.5 2.5 1.5 2.5 3" stroke="#60a5fa" stroke-width="1.25" stroke-linecap="round"/>
+            </svg>
+          </div>
+
+          <div class="card-body">
+            <p class="card-label">For job seekers</p>
+            <h2 class="card-title">Find your<br>perfect role.</h2>
+            <p class="card-desc">
+              Paste your resume, search any role. Get live matches with a real fit score, an honest gap analysis, and AI-tailored bullets for each job.
+            </p>
+            <ul class="card-features">
+              <li>Live job matching from real listings</li>
+              <li>Fit score 0–100 per role</li>
+              <li>Skill gap breakdown + closing plan</li>
+              <li>AI-tailored resume bullets per job</li>
+            </ul>
+          </div>
+
+          <div class="card-footer">
+            <span class="card-tag card-tag-seeker">Free to use</span>
+            <span class="card-cta">
+              Find my match
+              <span class="card-cta-arrow" aria-hidden="true">
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                  <path d="M2.5 6h7M6.5 3l3 3-3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </span>
+            </span>
+          </div>
+        </a>
+
+        <!-- Recruiter -->
+        <a class="choice-card" href="/recruiter.html" id="card-recruiter" aria-label="Recruiters — go to candidate ranker">
+          <div class="card-icon card-icon-recruiter" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect x="4" y="5" width="16" height="14" rx="2" stroke="#a78bfa" stroke-width="1.5"/>
+              <path d="M4 9h16" stroke="#a78bfa" stroke-width="1.5"/>
+              <path d="M9 5V3M15 5V3" stroke="#a78bfa" stroke-width="1.5" stroke-linecap="round"/>
+              <path d="M8 13h2M8 16h4" stroke="#a78bfa" stroke-width="1.5" stroke-linecap="round"/>
+              <circle cx="16" cy="14.5" r="2.5" stroke="#a78bfa" stroke-width="1.25"/>
+              <path d="M16 13.5v1l.7.7" stroke="#a78bfa" stroke-width="1.25" stroke-linecap="round"/>
+            </svg>
+          </div>
+
+          <div class="card-body">
+            <p class="card-label">For recruiters</p>
+            <h2 class="card-title">Rank every<br>candidate fast.</h2>
+            <p class="card-desc">
+              Upload up to 100 resumes, define your role. Get a ranked top-25 with scores, skill gaps, tier labels, and a one-click report for your hiring team.
+            </p>
+            <ul class="card-features">
+              <li>Rank 100 resumes in under 40s</li>
+              <li>Auto-surface past applicants</li>
+              <li>Scores, tiers, matched skills</li>
+              <li>One-click email report</li>
+            </ul>
+          </div>
+
+          <div class="card-footer">
+            <span class="card-tag card-tag-recruiter">Saves hours</span>
+            <span class="card-cta">
+              Rank candidates
+              <span class="card-cta-arrow" aria-hidden="true">
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                  <path d="M2.5 6h7M6.5 3l3 3-3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </span>
+            </span>
+          </div>
+        </a>
+
+      </section>
+
+      <!-- Stats bar -->
+      <div class="stats">
+        <div class="stat-item">
+          <span class="stat-num" data-count="100">0</span>
+          <span class="stat-label-text">Resumes ranked at once</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-num" data-count="40">0</span>
+          <span class="stat-label-text">Seconds to rank a pool</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-num" data-count="10">0</span>
+          <span class="stat-label-text">Live jobs matched per search</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-num">AI</span>
+          <span class="stat-label-text">Powered by Claude Sonnet</span>
+        </div>
+      </div>
+
+      <!-- Download section -->
+      <section class="download">
+        <div class="download-header">
+          <h2>Download the desktop app</h2>
+          <p>Full HiringDesk experience — runs locally, no browser required, works offline.</p>
+        </div>
+        <div class="download-buttons" id="downloadButtons">
+
+          <!-- Mac -->
+          <a class="dl-btn" id="dlMac"
+             href="https://github.com/hiringdesk/hiringdesk/releases/latest/download/HiringDesk-mac.dmg"
+             download>
+            <span class="dl-btn-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <path d="M12 2C9.5 2 8 4.5 8 4.5S5 4 4 6.5C2.5 9.5 4 13 4 13S2 15 2 18c0 2.5 1.5 4 3 4 1 0 2-.5 3-1.5 1 1 2.5 1.5 4 1.5s3-.5 4-1.5c1 1 2 1.5 3 1.5 1.5 0 3-1.5 3-4 0-3-2-5-2-5s1.5-3.5 0-6.5C19 4 16 4.5 16 4.5S14.5 2 12 2Z" stroke="#a0a0a0" stroke-width="1.5" stroke-linejoin="round"/>
+              </svg>
+            </span>
+            <span class="dl-btn-text">
+              <span class="dl-btn-label">Download for Mac</span>
+              <span class="dl-btn-sub">macOS 11+ · Apple & Intel</span>
+            </span>
+          </a>
+
+          <!-- Windows -->
+          <a class="dl-btn" id="dlWin"
+             href="https://github.com/hiringdesk/hiringdesk/releases/latest/download/HiringDesk-Setup.exe"
+             download>
+            <span class="dl-btn-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <path d="M3 5.5L11 4v7H3V5.5ZM12 3.8L21 2.5V11H12V3.8ZM3 12h8v7l-8-1.5V12ZM12 12h9v7.2L12 20.5V12Z" fill="#a0a0a0"/>
+              </svg>
+            </span>
+            <span class="dl-btn-text">
+              <span class="dl-btn-label">Download for Windows</span>
+              <span class="dl-btn-sub">Windows 10+</span>
+            </span>
+          </a>
+
+          <!-- View all releases -->
+          <a class="dl-btn" href="https://github.com/hiringdesk/hiringdesk/releases" target="_blank" rel="noopener">
+            <span class="dl-btn-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2Zm-1 14H9V8h2v8Zm4 0h-2V8h2v8Z" fill="none" stroke="#a0a0a0" stroke-width="1.5"/>
+                <path d="M9 8h6M9 12h6M9 16h4" stroke="#a0a0a0" stroke-width="1.5" stroke-linecap="round"/>
+              </svg>
+            </span>
+            <span class="dl-btn-text">
+              <span class="dl-btn-label">All releases</span>
+              <span class="dl-btn-sub">GitHub · Linux AppImage too</span>
+            </span>
+          </a>
+
+        </div>
+      </section>
+
+    </main>
+
+    <!-- ── Footer ──────────────────────────────────────────── -->
+    <footer class="footer">
+      <span class="footer-copy">© 2025 HiringDesk</span>
+      <nav class="footer-links" aria-label="Footer navigation">
+        <a href="/index.html" class="footer-link">Job Seekers</a>
+        <a href="/recruiter.html" class="footer-link">Recruiters</a>
+      </nav>
+    </footer>
+  </div>
+
+  <script src="/home.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(() => {});
+    }
+  </script>
+</body>
+</html>

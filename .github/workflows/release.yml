@@ -1,0 +1,49 @@
+name: Build & Release Desktop App
+
+on:
+  push:
+    tags:
+      - 'v*'   # triggers on: git tag v1.0.0 && git push --tags
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: macos-latest
+            label: mac
+          - os: windows-latest
+            label: win
+
+    runs-on: ${{ matrix.os }}
+    name: Build (${{ matrix.label }})
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Build Electron app
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Electron builder publishes to GitHub Releases automatically
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm run dist --${{ matrix.label }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: hiringdesk-${{ matrix.label }}
+          path: |
+            dist/*.dmg
+            dist/*.exe
+            dist/*.zip
+          if-no-files-found: ignore

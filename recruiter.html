@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>HiringDesk – Recruiter Dashboard</title>
+
+    <!-- PWA -->
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#4f8ef5" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="HiringDesk" />
+    <link rel="apple-touch-icon" href="/assets/icon-192.png" />
+
+    <!-- SEO -->
+    <meta name="description" content="Upload a candidate pool, define your role, and instantly surface the top 25 ranked by AI." />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="page-shell">
+
+      <!-- ── Sidebar ── -->
+      <aside class="sidebar">
+        <div class="brand-block">
+          <p class="eyebrow">Talent Sourcing Engine</p>
+          <h1>HiringDesk</h1>
+          <p class="brand-copy">
+            Drop in your candidate pool, define the role, and surface the top 25 ranked by skills, certs, experience, and location — instantly.
+          </p>
+          <div class="mode-toggle">
+            <a href="/index.html" class="toggle-btn">Job Seekers</a>
+            <a href="/recruiter.html" class="toggle-btn active">Recruiters</a>
+          </div>
+        </div>
+
+        <form id="rankForm">
+          <!-- Job definition -->
+          <section class="sidebar-panel">
+            <div class="panel-head">
+              <p class="panel-label">Job Requirements</p>
+              <span id="rankChip" class="status-chip neutral">Ready</span>
+            </div>
+
+            <label class="field-label" for="jobTitle">Job Title *</label>
+            <input id="jobTitle" class="input-shell" type="text" placeholder="e.g. Senior DevOps Engineer" required />
+
+            <label class="field-label" for="department">Department</label>
+            <input id="department" class="input-shell" type="text" placeholder="e.g. Engineering, Marketing" />
+
+            <label class="field-label" for="jobLocation">Location / Area *</label>
+            <input id="jobLocation" class="input-shell" type="text" placeholder="e.g. Austin TX, Remote, New York" required />
+
+            <label class="field-label" for="requiredSkills">Required Skills</label>
+            <input id="requiredSkills" class="input-shell" type="text" placeholder="AWS, Kubernetes, Terraform, Python" />
+
+            <label class="field-label" for="requiredCertifications">Required Certifications</label>
+            <input id="requiredCertifications" class="input-shell" type="text" placeholder="AWS Solutions Architect, CKA, PMP" />
+
+            <label class="field-label" for="minYearsExp">Minimum Years Experience</label>
+            <input id="minYearsExp" class="input-shell" type="number" min="0" max="30" placeholder="3" value="" />
+
+            <label class="field-label" for="additionalNotes">Additional Notes</label>
+            <input id="additionalNotes" class="input-shell" type="text" placeholder="Startup experience preferred, no relocation..." />
+
+            <label class="field-label" for="notificationEmail">Hiring Manager Email</label>
+            <input id="notificationEmail" class="input-shell" type="email" placeholder="manager@company.com" />
+          </section>
+
+          <!-- Candidate import -->
+          <section class="sidebar-panel">
+            <p class="panel-label">Candidate Pool</p>
+
+            <label class="field-label" for="resumeFiles">Upload Resumes (multiple)</label>
+            <input
+              id="resumeFiles"
+              class="input-shell"
+              type="file"
+              accept=".txt,.md,.pdf,.html,.htm"
+              multiple
+            />
+            <p class="support-copy" style="margin-top:4px">Accepts .txt, .md, .pdf — up to 100 files</p>
+
+            <label class="field-label" for="batchText">Or Paste Batch Resumes</label>
+            <textarea
+              id="batchText"
+              class="input-shell textarea-shell textarea-tall"
+              placeholder="Paste multiple resumes here, separated by a line of ---- between each one."
+            ></textarea>
+          </section>
+
+          <button type="submit" class="primary-button" id="rankBtn">Rank Candidates</button>
+          <p id="rankMessage" class="support-copy"></p>
+        </form>
+      </aside>
+
+      <!-- ── Main stage ── -->
+      <main class="main-stage">
+
+        <!-- Empty state -->
+        <section class="hero-card" id="emptyState">
+          <div>
+            <p class="eyebrow">Recruiter Dashboard</p>
+            <h2>Stop reading resumes.<br>Start ranking talent.</h2>
+            <p class="hero-copy">
+              Define the role, drop in your candidate pool, and HiringDesk scores every applicant by skill match, certs, experience, and location. Top 25 ranked. One-click email report. No bias, no guessing.
+            </p>
+          </div>
+          <div class="hero-meta">
+            <div>
+              <p class="meta-label">Step 1</p>
+              <p class="meta-value">Define role requirements &amp; area</p>
+            </div>
+            <div>
+              <p class="meta-label">Step 2</p>
+              <p class="meta-value">Upload or paste your candidate pool</p>
+            </div>
+            <div>
+              <p class="meta-label">Step 3</p>
+              <p class="meta-value">Get ranked top 25 + email report</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- Results state -->
+        <div id="resultsState" class="results-hidden">
+
+          <!-- Job summary card -->
+          <section class="hero-card">
+            <div>
+              <p class="eyebrow">Role Overview</p>
+              <h2 id="rJobTitle">Open Role</h2>
+            </div>
+            <div class="hero-meta">
+              <div>
+                <p class="meta-label">Department</p>
+                <p id="rDepartment" class="meta-value">—</p>
+              </div>
+              <div>
+                <p class="meta-label">Location</p>
+                <p id="rLocation" class="meta-value">—</p>
+              </div>
+              <div>
+                <p class="meta-label">Min Experience</p>
+                <p id="rMinExp" class="meta-value">—</p>
+              </div>
+            </div>
+            <div class="tag-row">
+              <div class="tag-card">
+                <p class="meta-label">Required Skills</p>
+                <p id="rSkills" class="meta-value">—</p>
+              </div>
+              <div class="tag-card">
+                <p class="meta-label">Required Certifications</p>
+                <p id="rCerts" class="meta-value">—</p>
+              </div>
+            </div>
+          </section>
+
+          <!-- Stats -->
+          <section class="stats-grid">
+            <article class="stat-card">
+              <span class="stat-accent accent-blue"></span>
+              <p class="stat-value" id="rTotalAnalyzed">0</p>
+              <p class="stat-label">Resumes Analyzed</p>
+            </article>
+            <article class="stat-card">
+              <span class="stat-accent accent-green"></span>
+              <p class="stat-value" id="rHighPriority">0</p>
+              <p class="stat-label">High Priority</p>
+            </article>
+            <article class="stat-card">
+              <span class="stat-accent accent-amber"></span>
+              <p class="stat-value" id="rQualified">0</p>
+              <p class="stat-label">Qualified</p>
+            </article>
+            <article class="stat-card">
+              <span class="stat-accent accent-blue"></span>
+              <p class="stat-value" id="rAvgScore">0</p>
+              <p class="stat-label">Avg Match Score</p>
+            </article>
+          </section>
+
+          <!-- Notify bar -->
+          <div class="notify-bar">
+            <div class="notify-bar-text">
+              <p class="notify-title">Notify your hiring team</p>
+              <p class="notify-subtitle">Send a full ranked report to your hiring manager — or preview it here.</p>
+            </div>
+            <div class="notify-bar-actions">
+              <input
+                id="notifyEmailInput"
+                class="input-shell notify-email-input"
+                type="email"
+                placeholder="manager@company.com"
+              />
+              <button id="notifyBtn" class="action-button success-action">Email Report</button>
+              <button id="previewEmailBtn" class="action-button secondary-action">Preview</button>
+            </div>
+            <p id="notifyMessage" class="support-copy notify-feedback"></p>
+          </div>
+
+          <!-- Past applicants from database -->
+          <div id="pastSection" class="past-section" style="display:none">
+            <div class="past-header">
+              <div class="past-header-text">
+                <p class="eyebrow">From Your Database</p>
+                <h3 class="past-title">Past Applicants That Fit This Role</h3>
+                <p id="pastSubtitle" class="past-subtitle"></p>
+              </div>
+              <span id="pastChip" class="status-chip loading">Checking</span>
+            </div>
+            <div id="pastList" class="ranked-list"></div>
+          </div>
+
+          <!-- Ranked list -->
+          <div id="rankedList" class="ranked-list"></div>
+        </div>
+      </main>
+    </div>
+
+    <!-- Email preview modal -->
+    <div id="emailModal" class="modal-overlay" aria-hidden="true">
+      <div class="modal-box">
+        <div class="modal-head">
+          <p class="modal-title">Email Report Preview</p>
+          <button id="modalClose" class="modal-close-btn" aria-label="Close">✕</button>
+        </div>
+        <div id="emailPreviewFrame" class="email-preview-frame"></div>
+        <div class="modal-footer">
+          <button id="downloadEmailBtn" class="action-button secondary-action">Download HTML</button>
+          <button class="modal-close-btn-footer action-button secondary-action">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="./recruiter.js"></script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js').catch(() => {});
+      }
+    </script>
+  </body>
+</html>

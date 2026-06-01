@@ -1,0 +1,8 @@
+node_modules/
+.env
+hiringdesk.db
+hiringdesk.db-shm
+hiringdesk.db-wal
+dist/
+SESSION_CONTEXT.md
+.DS_Store

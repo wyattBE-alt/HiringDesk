@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>HiringDesk – See Your Real Fit Score</title>
+
+    <!-- PWA -->
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#4f8ef5" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="HiringDesk" />
+    <link rel="apple-touch-icon" href="/assets/icon-192.png" />
+
+    <!-- SEO -->
+    <meta name="description" content="Paste your resume, search a role, and instantly see where you qualify — with an AI gap-closing plan." />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="page-shell">
+      <aside class="sidebar">
+        <div class="brand-block">
+          <p class="eyebrow">AI Match Engine</p>
+          <h1>HiringDesk</h1>
+          <p class="brand-copy">
+            Paste your resume, search a role. We score your fit against live listings, show exactly why, and give you a plan to close any gaps.
+          </p>
+          <div class="mode-toggle">
+            <a href="/index.html" class="toggle-btn active">Job Seekers</a>
+            <a href="/recruiter.html" class="toggle-btn">Recruiters</a>
+          </div>
+        </div>
+
+        <form id="analyzeForm">
+          <section class="sidebar-panel">
+            <div class="panel-head">
+              <p class="panel-label">Your Resume</p>
+              <span id="resumeChip" class="status-chip neutral">Ready</span>
+            </div>
+
+            <label class="field-label" for="resumeFile">Upload File</label>
+            <input
+              id="resumeFile"
+              class="input-shell"
+              type="file"
+              accept=".txt,.md,.pdf,.html,.htm"
+            />
+
+            <label class="field-label" for="resumeText">Or Paste Resume Text</label>
+            <textarea
+              id="resumeText"
+              class="input-shell textarea-shell"
+              placeholder="Paste your full resume here..."
+            ></textarea>
+          </section>
+
+          <!-- ── Credentials panel ── -->
+          <section class="sidebar-panel">
+            <div class="panel-head">
+              <p class="panel-label">Your Credentials</p>
+              <button type="button" id="addCredentialBtn" class="add-item-btn">+ Add</button>
+            </div>
+            <p class="cred-hint-text">Add certifications with their official credential numbers — not checkboxes, real numbers recruiters can verify.</p>
+            <div id="credentialList" class="credential-list"></div>
+          </section>
+
+          <section class="sidebar-panel">
+            <p class="panel-label">Job Search</p>
+
+            <label class="field-label" for="jobQuery">Role / Keywords</label>
+            <input
+              id="jobQuery"
+              class="input-shell"
+              type="text"
+              placeholder="e.g. Software Engineer, Product Manager"
+            />
+
+            <label class="field-label" for="jobLocation">Location (optional)</label>
+            <input
+              id="jobLocation"
+              class="input-shell"
+              type="text"
+              placeholder="e.g. New York, Remote"
+            />
+          </section>
+
+          <button type="submit" class="primary-button" id="analyzeBtn">
+            Scan &amp; Score →
+          </button>
+          <p id="analyzeMessage" class="support-copy"></p>
+        </form>
+      </aside>
+
+      <main class="main-stage">
+        <!-- Empty / welcome state -->
+        <section class="hero-card" id="emptyState">
+          <div>
+            <p class="eyebrow">How it works</p>
+            <h2>Stop guessing.<br>See your actual fit score.</h2>
+            <p class="hero-copy">
+              LinkedIn shows you jobs. HiringDesk shows you <em>whether you qualify</em> — and exactly what to do if you don't. Real scores. Real gaps. Real plan.
+            </p>
+          </div>
+          <div class="hero-meta hero-steps">
+            <div class="hero-step">
+              <span class="step-num">1</span>
+              <div>
+                <p class="meta-label">Your Resume</p>
+                <p class="meta-value">Paste or upload — we parse it instantly</p>
+              </div>
+            </div>
+            <div class="hero-step">
+              <span class="step-num">2</span>
+              <div>
+                <p class="meta-label">Live Job Scan</p>
+                <p class="meta-value">We pull real listings matching your search</p>
+              </div>
+            </div>
+            <div class="hero-step">
+              <span class="step-num">3</span>
+              <div>
+                <p class="meta-label">Your Score</p>
+                <p class="meta-value">Fit score per job + a gap-closing plan</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Results (hidden until analysis completes) -->
+        <div id="resultsState" class="results-hidden">
+          <!-- Resume insights -->
+          <section class="hero-card">
+            <div>
+              <p class="eyebrow">Resume Analysis</p>
+              <h2 id="candidateName">Candidate</h2>
+              <p id="candidateTitle" class="hero-copy"></p>
+            </div>
+            <div class="hero-meta">
+              <div>
+                <p class="meta-label">Experience</p>
+                <p id="candidateYears" class="meta-value"></p>
+              </div>
+              <div>
+                <p class="meta-label">Education</p>
+                <p id="candidateEducation" class="meta-value"></p>
+              </div>
+              <div>
+                <p class="meta-label">Top Skills</p>
+                <p id="candidateSkills" class="meta-value"></p>
+              </div>
+            </div>
+            <div class="tag-row">
+              <div class="tag-card">
+                <p class="meta-label">Strengths</p>
+                <ul id="candidateStrengths" class="insight-list"></ul>
+              </div>
+              <div class="tag-card">
+                <p class="meta-label">Resume Improvements</p>
+                <ul id="candidateImprovements" class="insight-list insight-list--improvements"></ul>
+              </div>
+            </div>
+
+            <!-- Claimed credentials (shown only when credentials were entered) -->
+            <div id="claimedCredentialsSection" class="claimed-creds-section" style="display:none">
+              <p class="meta-label claimed-creds-label">🔑 Claimed Credentials</p>
+              <p class="claimed-creds-hint">These credential numbers travel with your application — recruiters see the actual number, not just a checkbox.</p>
+              <div id="claimedCredentialsList" class="claimed-creds-list"></div>
+            </div>
+          </section>
+
+          <!-- Stats -->
+          <section class="stats-grid">
+            <article class="stat-card">
+              <span class="stat-accent accent-blue"></span>
+              <p class="stat-value" id="averageScore">0</p>
+              <p class="stat-label">Average Match Score</p>
+            </article>
+            <article class="stat-card">
+              <span class="stat-accent accent-green"></span>
+              <p class="stat-value" id="qualifiedCount">0</p>
+              <p class="stat-label">Ready to Apply</p>
+            </article>
+            <article class="stat-card">
+              <span class="stat-accent accent-amber"></span>
+              <p class="stat-value" id="borderlineCount">0</p>
+              <p class="stat-label">Apply with Tailoring</p>
+            </article>
+            <article class="stat-card">
+              <span class="stat-accent accent-rose"></span>
+              <p class="stat-value" id="stretchCount">0</p>
+              <p class="stat-label">Stretch Goals</p>
+            </article>
+          </section>
+
+          <!-- Board -->
+          <section class="board-grid">
+            <article class="lane">
+              <div class="lane-header">
+                <h3>Ready to Apply</h3>
+                <span id="qualifiedBadge" class="lane-badge">0</span>
+              </div>
+              <div id="qualifiedLane" class="lane-stack"></div>
+            </article>
+
+            <article class="lane">
+              <div class="lane-header">
+                <h3>Apply with Tailoring</h3>
+                <span id="borderlineBadge" class="lane-badge">0</span>
+              </div>
+              <div id="borderlineLane" class="lane-stack"></div>
+            </article>
+
+            <article class="lane">
+              <div class="lane-header">
+                <h3>Stretch Goals</h3>
+                <span id="stretchBadge" class="lane-badge">0</span>
+              </div>
+              <div id="stretchLane" class="lane-stack"></div>
+            </article>
+          </section>
+        </div>
+      </main>
+    </div>
+
+    <script src="./app.js"></script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js').catch(() => {});
+      }
+    </script>
+  </body>
+</html>
