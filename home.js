@@ -92,34 +92,77 @@ function initCardTilt(card) {
   });
 }
 
-/* ── Click ripple + navigate ─────────────────────────────
-   Brief ripple feedback before navigation. Asymmetric
-   timing: ripple is fast (150ms), navigate immediately.
-   Don't delay navigation — the ripple is decorative.
+/* ── Page transition — circle expand from card center ────────
+   Emil decision framework:
+   1. Animate? YES — navigation is occasional, jarring jump is worse.
+   2. Purpose? Spatial — user understands where they're going.
+   3. Easing? ease-out (strong) — circle starts fast, slows at edges.
+      Physically correct: small circle covers relative area quickly.
+   4. Duration? 420ms — modal tier, full-viewport transition.
+
+   Implementation: clip-path circle grows from the card's center.
+   clip-path is GPU-composited — runs off the main thread.
+   Navigate at 390ms so the new page loads under the full overlay.
+   Entry animation on destination pages in styles.css.
 ──────────────────────────────────────────────────────── */
 
-function initCardClick(card) {
+function initCardTransition(card) {
   card.addEventListener('click', (e) => {
-    if (prefersReducedMotion) return; // let the browser handle navigation
+    e.preventDefault();
+    const href = card.getAttribute('href');
 
+    // System preference — skip animation entirely
+    if (prefersReducedMotion) {
+      window.location.href = href;
+      return;
+    }
+
+    // Lock interaction the moment user clicks
+    document.body.style.pointerEvents = 'none';
+
+    // Circle originates from the clicked card's center in viewport space
     const rect = card.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    const size = Math.max(rect.width, rect.height) * 1.5;
+    const cx   = Math.round(rect.left + rect.width  / 2);
+    const cy   = Math.round(rect.top  + rect.height / 2);
 
-    const ripple = document.createElement('span');
-    ripple.className = 'ripple';
-    Object.assign(ripple.style, {
-      width:  `${size}px`,
-      height: `${size}px`,
-      left:   `${x - size / 2}px`,
-      top:    `${y - size / 2}px`,
+    // ── 1. Fade everything except the clicked card (fast — circle is the star)
+    const otherId    = card.id === 'card-seeker' ? 'card-recruiter' : 'card-seeker';
+    const otherCard  = document.getElementById(otherId);
+    const bgTargets  = document.querySelectorAll('.hero, .stats, .download, .nav, .footer');
+
+    [...bgTargets, otherCard].filter(Boolean).forEach((el) => {
+      el.style.transition = 'opacity 180ms ease';
+      el.style.opacity    = '0';
     });
 
-    card.appendChild(ripple);
+    // ── 2. Clicked card: subtle scale-up — feels like zooming into it
+    card.style.transition   = `transform 400ms cubic-bezier(0.23, 1, 0.32, 1)`;
+    card.style.transform    = 'scale(1.04) translateZ(0)';
+    card.style.willChange   = 'transform';
 
-    // Clean up after animation (navigation will remove the page anyway)
-    ripple.addEventListener('animationend', () => ripple.remove(), { once: true });
+    // ── 3. Full-page overlay: black circle expands from card center
+    //    clip-path: circle(0%) → circle(150%) covers any viewport size
+    const overlay = document.createElement('div');
+    Object.assign(overlay.style, {
+      position:  'fixed',
+      inset:     '0',
+      background: '#000',
+      zIndex:    '9999',
+      clipPath:  `circle(0% at ${cx}px ${cy}px)`,
+      transition: `clip-path 420ms cubic-bezier(0.23, 1, 0.32, 1)`,
+      pointerEvents: 'none',
+      willChange: 'clip-path',
+    });
+    document.body.appendChild(overlay);
+
+    // Force a reflow so the browser paints the 0% state before animating
+    overlay.getBoundingClientRect();
+
+    // Expand — 150% guarantees full coverage from any card position
+    overlay.style.clipPath = `circle(150% at ${cx}px ${cy}px)`;
+
+    // Navigate just before the circle fully closes — new page loads underneath
+    setTimeout(() => { window.location.href = href; }, 390);
   });
 }
 
@@ -249,7 +292,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   cards.forEach((card) => {
     initCardTilt(card);
-    initCardClick(card);
+    initCardTransition(card);
   });
 
   initCounters();
