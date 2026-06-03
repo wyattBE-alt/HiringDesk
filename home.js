@@ -111,58 +111,60 @@ function initCardTransition(card) {
     e.preventDefault();
     const href = card.getAttribute('href');
 
-    // System preference — skip animation entirely
+    // System preference — navigate instantly, no animation
     if (prefersReducedMotion) {
       window.location.href = href;
       return;
     }
 
-    // Lock interaction the moment user clicks
-    document.body.style.pointerEvents = 'none';
-
-    // Circle originates from the clicked card's center in viewport space
+    // Snapshot the card center BEFORE locking (getBoundingClientRect needs layout)
     const rect = card.getBoundingClientRect();
     const cx   = Math.round(rect.left + rect.width  / 2);
     const cy   = Math.round(rect.top  + rect.height / 2);
 
-    // ── 1. Fade everything except the clicked card (fast — circle is the star)
-    const otherId    = card.id === 'card-seeker' ? 'card-recruiter' : 'card-seeker';
-    const otherCard  = document.getElementById(otherId);
-    const bgTargets  = document.querySelectorAll('.hero, .stats, .download, .nav, .footer');
+    // Lock all interaction immediately
+    document.body.style.pointerEvents = 'none';
 
-    [...bgTargets, otherCard].filter(Boolean).forEach((el) => {
-      el.style.transition = 'opacity 180ms ease';
+    // Fade everything on the page — fast, so the circle is the focal point
+    // Don't touch the clicked card's transform — the tilt RAF owns that property
+    // and fighting it causes flicker. The overlay covers it anyway.
+    const otherId   = card.id === 'card-seeker' ? 'card-recruiter' : 'card-seeker';
+    const otherCard = document.getElementById(otherId);
+    [
+      ...document.querySelectorAll('.hero, .stats, .download, .nav, .footer, .cards'),
+    ].filter(Boolean).forEach((el) => {
+      el.style.transition = 'opacity 200ms ease';
       el.style.opacity    = '0';
     });
+    if (otherCard) {
+      otherCard.style.transition = 'opacity 200ms ease';
+      otherCard.style.opacity    = '0';
+    }
 
-    // ── 2. Clicked card: subtle scale-up — feels like zooming into it
-    card.style.transition   = `transform 400ms cubic-bezier(0.23, 1, 0.32, 1)`;
-    card.style.transform    = 'scale(1.04) translateZ(0)';
-    card.style.willChange   = 'transform';
-
-    // ── 3. Full-page overlay: black circle expands from card center
-    //    clip-path: circle(0%) → circle(150%) covers any viewport size
+    // Build the overlay off-screen first, then mount — avoids a flash
     const overlay = document.createElement('div');
-    Object.assign(overlay.style, {
-      position:  'fixed',
-      inset:     '0',
-      background: '#000',
-      zIndex:    '9999',
-      clipPath:  `circle(0% at ${cx}px ${cy}px)`,
-      transition: `clip-path 420ms cubic-bezier(0.23, 1, 0.32, 1)`,
-      pointerEvents: 'none',
-      willChange: 'clip-path',
-    });
+    overlay.style.cssText = `
+      position: fixed;
+      inset: 0;
+      background: #000;
+      z-index: 9999;
+      pointer-events: none;
+      will-change: clip-path;
+      clip-path: circle(0% at ${cx}px ${cy}px);
+    `;
     document.body.appendChild(overlay);
 
-    // Force a reflow so the browser paints the 0% state before animating
-    overlay.getBoundingClientRect();
+    // Two rAF calls: first commits the 0% paint, second starts the expand.
+    // Single rAF isn't always enough — some browsers batch same-frame style+paint.
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        overlay.style.transition = 'clip-path 480ms cubic-bezier(0.23, 1, 0.32, 1)';
+        overlay.style.clipPath   = `circle(150% at ${cx}px ${cy}px)`;
 
-    // Expand — 150% guarantees full coverage from any card position
-    overlay.style.clipPath = `circle(150% at ${cx}px ${cy}px)`;
-
-    // Navigate just before the circle fully closes — new page loads underneath
-    setTimeout(() => { window.location.href = href; }, 390);
+        // Navigate after animation — new page fades in on top of the overlay
+        setTimeout(() => { window.location.href = href; }, 460);
+      });
+    });
   });
 }
 
