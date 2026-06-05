@@ -1,10 +1,11 @@
-import Database from "better-sqlite3";
+import { DatabaseSync } from "node:sqlite";
 import path from "path";
 import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const db = new Database(path.join(__dirname, "hiringdesk.db"));
-db.pragma("journal_mode = WAL");
+const db = new DatabaseSync(path.join(__dirname, "hiringdesk.db"));
+
+db.exec("PRAGMA journal_mode = WAL");
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS jobs (
@@ -62,43 +63,49 @@ const insertRanking = db.prepare(`
   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 `);
 
-export const saveJobAndCandidates = db.transaction((job, candidates, resumeTexts) => {
-  const jobResult = insertJob.run(
-    job.title, job.department || null, job.location || null,
-    job.requiredSkills || null, job.requiredCertifications || null,
-    job.minYearsExp || 0, job.additionalNotes || null
-  );
-  const jobId = jobResult.lastInsertRowid;
-
-  for (const c of candidates) {
-    const resumeText = (resumeTexts[c.resumeIndex] || "").slice(0, 4000);
-    const candidateResult = insertCandidate.run(
-      c.name || "Unknown",
-      c.currentTitle || null,
-      c.location || null,
-      c.contactInfo || null,
-      c.yearsExperience ?? null,
-      JSON.stringify(c.matchedSkills || []),
-      JSON.stringify(c.matchedCertifications || []),
-      resumeText
+export function saveJobAndCandidates(job, candidates, resumeTexts) {
+  db.exec("BEGIN");
+  try {
+    const jobResult = insertJob.run(
+      job.title, job.department || null, job.location || null,
+      job.requiredSkills || null, job.requiredCertifications || null,
+      job.minYearsExp || 0, job.additionalNotes || null
     );
-    const candidateId = candidateResult.lastInsertRowid;
+    const jobId = jobResult.lastInsertRowid;
 
-    insertRanking.run(
-      candidateId, jobId, c.score, c.tier,
-      JSON.stringify(c.matchedSkills || []),
-      JSON.stringify(c.missingSkills || []),
-      JSON.stringify(c.matchedCertifications || []),
-      JSON.stringify(c.missingCertifications || []),
-      c.reason || ""
-    );
+    for (const c of candidates) {
+      const resumeText = (resumeTexts[c.resumeIndex] || "").slice(0, 4000);
+      const candidateResult = insertCandidate.run(
+        c.name || "Unknown",
+        c.currentTitle || null,
+        c.location || null,
+        c.contactInfo || null,
+        c.yearsExperience ?? null,
+        JSON.stringify(c.matchedSkills || []),
+        JSON.stringify(c.matchedCertifications || []),
+        resumeText
+      );
+      const candidateId = candidateResult.lastInsertRowid;
+
+      insertRanking.run(
+        candidateId, jobId, c.score, c.tier,
+        JSON.stringify(c.matchedSkills || []),
+        JSON.stringify(c.missingSkills || []),
+        JSON.stringify(c.matchedCertifications || []),
+        JSON.stringify(c.missingCertifications || []),
+        c.reason || ""
+      );
+    }
+
+    db.exec("COMMIT");
+    return jobId;
+  } catch (err) {
+    db.exec("ROLLBACK");
+    throw err;
   }
-
-  return jobId;
-});
+}
 
 export function getPastCandidates() {
-  // Deduplicate by contact_info when available, keeping the most recent record per person
   return db.prepare(`
     SELECT c.id, c.name, c.current_title, c.location, c.contact_info,
            c.years_experience, c.skills, c.certifications, c.resume_text,

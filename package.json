@@ -14,9 +14,11 @@
     "dist:win": "electron-builder --win",
     "dist:linux": "electron-builder --linux"
   },
+  "engines": {
+    "node": ">=22.5.0"
+  },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.24.0",
-    "better-sqlite3": "^9.4.3",
     "dotenv": "^16.4.5",
     "express": "^4.19.0",
     "express-rate-limit": "^8.5.2",
