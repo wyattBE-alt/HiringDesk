@@ -49,6 +49,7 @@
     ],
     "mac": {
       "category": "public.app-category.business",
+      "artifactName": "HiringDesk-mac-${arch}.${ext}",
       "target": [
         {
           "target": "dmg",
@@ -68,6 +69,7 @@
       "icon": "assets/icon.png"
     },
     "win": {
+      "artifactName": "HiringDesk-Setup.${ext}",
       "target": [
         "nsis",
         "portable"
@@ -75,6 +77,7 @@
       "icon": "assets/icon.ico"
     },
     "linux": {
+      "artifactName": "HiringDesk-linux-${arch}.${ext}",
       "target": [
         "AppImage",
         "deb"

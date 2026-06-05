@@ -941,42 +941,54 @@
         </div>
         <div class="download-buttons" id="downloadButtons">
 
-          <!-- Mac -->
-          <a class="dl-btn" id="dlMac"
-             href="https://github.com/wyattBE-alt/HiringDesk/releases/latest/download/HiringDesk-mac.dmg"
-             download>
+          <!-- Mac Apple Silicon -->
+          <a class="dl-btn primary-dl"
+             href="https://github.com/wyattBE-alt/HiringDesk/releases/latest/download/HiringDesk-mac-arm64.dmg">
+            <span class="dl-btn-badge">Recommended</span>
+            <span class="dl-btn-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <path d="M12 2C9.5 2 8 4.5 8 4.5S5 4 4 6.5C2.5 9.5 4 13 4 13S2 15 2 18c0 2.5 1.5 4 3 4 1 0 2-.5 3-1.5 1 1 2.5 1.5 4 1.5s3-.5 4-1.5c1 1 2 1.5 3 1.5 1.5 0 3-1.5 3-4 0-3-2-5-2-5s1.5-3.5 0-6.5C19 4 16 4.5 16 4.5S14.5 2 12 2Z" stroke="#60a5fa" stroke-width="1.5" stroke-linejoin="round"/>
+              </svg>
+            </span>
+            <span class="dl-btn-text">
+              <span class="dl-btn-label">Mac — Apple Silicon</span>
+              <span class="dl-btn-sub">macOS 11+ · M1 / M2 / M3</span>
+            </span>
+          </a>
+
+          <!-- Mac Intel -->
+          <a class="dl-btn"
+             href="https://github.com/wyattBE-alt/HiringDesk/releases/latest/download/HiringDesk-mac-x64.dmg">
             <span class="dl-btn-icon">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
                 <path d="M12 2C9.5 2 8 4.5 8 4.5S5 4 4 6.5C2.5 9.5 4 13 4 13S2 15 2 18c0 2.5 1.5 4 3 4 1 0 2-.5 3-1.5 1 1 2.5 1.5 4 1.5s3-.5 4-1.5c1 1 2 1.5 3 1.5 1.5 0 3-1.5 3-4 0-3-2-5-2-5s1.5-3.5 0-6.5C19 4 16 4.5 16 4.5S14.5 2 12 2Z" stroke="#a0a0a0" stroke-width="1.5" stroke-linejoin="round"/>
               </svg>
             </span>
             <span class="dl-btn-text">
-              <span class="dl-btn-label">Download for Mac</span>
-              <span class="dl-btn-sub">macOS 11+ · Apple & Intel</span>
+              <span class="dl-btn-label">Mac — Intel</span>
+              <span class="dl-btn-sub">macOS 11+ · Intel chips</span>
             </span>
           </a>
 
-          <!-- Windows -->
-          <a class="dl-btn" id="dlWin"
-             href="https://github.com/wyattBE-alt/HiringDesk/releases/latest/download/HiringDesk-Setup.exe"
-             download>
+          <!-- Windows — coming soon -->
+          <div class="dl-btn" style="opacity:0.45;cursor:default" aria-disabled="true">
             <span class="dl-btn-icon">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
                 <path d="M3 5.5L11 4v7H3V5.5ZM12 3.8L21 2.5V11H12V3.8ZM3 12h8v7l-8-1.5V12ZM12 12h9v7.2L12 20.5V12Z" fill="#a0a0a0"/>
               </svg>
             </span>
             <span class="dl-btn-text">
-              <span class="dl-btn-label">Download for Windows</span>
-              <span class="dl-btn-sub">Windows 10+</span>
+              <span class="dl-btn-label">Windows</span>
+              <span class="dl-btn-sub">Coming soon</span>
             </span>
-          </a>
+          </div>
 
           <!-- View all releases -->
           <a class="dl-btn" href="https://github.com/wyattBE-alt/HiringDesk/releases" target="_blank" rel="noopener">
             <span class="dl-btn-icon">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2Zm-1 14H9V8h2v8Zm4 0h-2V8h2v8Z" fill="none" stroke="#a0a0a0" stroke-width="1.5"/>
                 <path d="M9 8h6M9 12h6M9 16h4" stroke="#a0a0a0" stroke-width="1.5" stroke-linecap="round"/>
+                <rect x="4" y="4" width="16" height="16" rx="2" stroke="#a0a0a0" stroke-width="1.5"/>
               </svg>
             </span>
             <span class="dl-btn-text">
