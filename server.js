@@ -17,6 +17,12 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 
 
 app.use(express.json({ limit: "5mb" }));
 
+// ── Diagnostics (temp) ───────────────────────────────────────────────────────
+app.get("/api/debug-key", (req, res) => {
+  const key = process.env.JSEARCH_API_KEY || "";
+  res.json({ first8: key.slice(0, 8), length: key.length, set: key.length > 10 });
+});
+
 // ── Rate limiting ─────────────────────────────────────────────────────────────
 // Protects against API abuse and runaway Anthropic billing.
 
