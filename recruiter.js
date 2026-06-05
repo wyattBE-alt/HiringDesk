@@ -4,6 +4,8 @@ let currentJob = null;
 let currentCandidates = [];
 let previewHtml = "";
 let pastMatchController = null;
+let shortlistedCandidates = new Set();
+let activeFilter = "all";
 
 // ── Element refs ────────────────────────────────────────────────────────────
 
@@ -25,6 +27,12 @@ const pastSection = document.getElementById("pastSection");
 const pastList = document.getElementById("pastList");
 const pastChip = document.getElementById("pastChip");
 const pastSubtitle = document.getElementById("pastSubtitle");
+const shortlistSection = document.getElementById("shortlistSection");
+const filterChipsEl = document.getElementById("filterChips");
+const csvBtn = document.getElementById("csvBtn");
+const integrationsToggle = document.getElementById("integrationsToggle");
+const integrationsBody = document.getElementById("integrationsBody");
+const integrationsChevron = document.getElementById("integrationsChevron");
 
 // ── Form submission ──────────────────────────────────────────────────────────
 
@@ -47,7 +55,6 @@ rankForm.addEventListener("submit", async (e) => {
   formData.append("requiredCertifications", document.getElementById("requiredCertifications").value.trim());
   formData.append("minYearsExp", document.getElementById("minYearsExp").value.trim());
   formData.append("additionalNotes", document.getElementById("additionalNotes").value.trim());
-  formData.append("notificationEmail", document.getElementById("notificationEmail").value.trim());
   if (batchText) formData.append("batchText", batchText);
   for (const file of resumeFiles) formData.append("resumeFiles", file);
 
@@ -107,6 +114,10 @@ function renderResults(data) {
   currentJob = job;
   currentCandidates = candidates;
   previewHtml = "";
+  shortlistedCandidates = new Set();
+  activeFilter = "all";
+  filterChipsEl.querySelectorAll(".filter-chip").forEach(c => c.classList.remove("filter-chip--active"));
+  filterChipsEl.querySelector('[data-filter="all"]').classList.add("filter-chip--active");
 
   // Job summary
   document.getElementById("rJobTitle").textContent = job.title;
@@ -126,11 +137,8 @@ function renderResults(data) {
   if (job.notificationEmail) notifyEmailInput.value = job.notificationEmail;
 
   // Ranked list
-  if (!candidates.length) {
-    rankedList.innerHTML = `<div class="empty-card">No candidates matched enough to rank. Try relaxing requirements or uploading more resumes.</div>`;
-  } else {
-    rankedList.innerHTML = candidates.map((c, i) => renderRankedCard(c, i + 1)).join("");
-  }
+  renderShortlistSection();
+  renderFilteredList();
 
   // Show results
   emptyState.style.display = "none";
@@ -140,9 +148,11 @@ function renderResults(data) {
 
 // ── Candidate card ───────────────────────────────────────────────────────────
 
-function renderRankedCard(candidate, rank) {
+function renderRankedCard(candidate, rank, index) {
   const { name, currentTitle, location, contactInfo, yearsExperience, score, tier,
     matchedSkills, missingSkills, matchedCertifications, missingCertifications, reason } = candidate;
+
+  const isShortlisted = shortlistedCandidates.has(index);
 
   const tierClass = tier === "high_priority" ? "qualified"
     : tier === "qualified" ? "borderline"
@@ -184,14 +194,17 @@ function renderRankedCard(candidate, rank) {
 
         <!-- Candidate info column -->
         <div class="cand-col">
-          <div class="cand-header">
-            <h4 class="cand-name">${escapeHtml(name)}</h4>
-            <div class="cand-meta-row">
-              ${currentTitle ? `<span class="meta-pill">${escapeHtml(currentTitle)}</span>` : ""}
-              ${location ? `<span class="meta-pill">📍 ${escapeHtml(location)}</span>` : ""}
-              ${yearsExperience != null ? `<span class="meta-pill">⏱ ${yearsExperience} yr${yearsExperience !== 1 ? "s" : ""}</span>` : ""}
-              ${contactInfo ? `<span class="meta-pill meta-pill--contact">✉ ${escapeHtml(contactInfo)}</span>` : ""}
+          <div class="cand-header-row">
+            <div class="cand-header">
+              <h4 class="cand-name">${escapeHtml(name)}</h4>
+              <div class="cand-meta-row">
+                ${currentTitle ? `<span class="meta-pill">${escapeHtml(currentTitle)}</span>` : ""}
+                ${location ? `<span class="meta-pill">📍 ${escapeHtml(location)}</span>` : ""}
+                ${yearsExperience != null ? `<span class="meta-pill">⏱ ${yearsExperience} yr${yearsExperience !== 1 ? "s" : ""}</span>` : ""}
+                ${contactInfo ? `<span class="meta-pill meta-pill--contact">✉ ${escapeHtml(contactInfo)}</span>` : ""}
+              </div>
             </div>
+            <button type="button" class="shortlist-btn${isShortlisted ? " shortlist-btn--active" : ""}" data-candidate-index="${index}" aria-pressed="${isShortlisted}">${isShortlisted ? "★ Shortlisted" : "☆ Shortlist"}</button>
           </div>
 
           <p class="cand-reason">${escapeHtml(reason || "")}</p>
@@ -216,6 +229,63 @@ function renderRankedCard(candidate, rank) {
     </article>
   `;
 }
+
+// ── Shortlist & filter ───────────────────────────────────────────────────────
+
+function renderFilteredList() {
+  if (!currentCandidates.length) {
+    rankedList.innerHTML = `<div class="empty-card">No candidates matched enough to rank. Try relaxing requirements or uploading more resumes.</div>`;
+    return;
+  }
+  const filtered = activeFilter === "all"
+    ? currentCandidates
+    : currentCandidates.filter(c => c.tier === activeFilter);
+  if (!filtered.length) {
+    rankedList.innerHTML = `<div class="empty-card">No candidates in this tier.</div>`;
+    return;
+  }
+  rankedList.innerHTML = filtered.map(c => {
+    const i = currentCandidates.indexOf(c);
+    return renderRankedCard(c, i + 1, i);
+  }).join("");
+}
+
+function renderShortlistSection() {
+  const shortlisted = currentCandidates.filter((_, i) => shortlistedCandidates.has(i));
+  if (!shortlisted.length) {
+    shortlistSection.style.display = "none";
+    return;
+  }
+  shortlistSection.style.display = "grid";
+  document.getElementById("shortlistCount").textContent =
+    `${shortlisted.length} candidate${shortlisted.length !== 1 ? "s" : ""}`;
+  document.getElementById("shortlistList").innerHTML = shortlisted.map(c => {
+    const i = currentCandidates.indexOf(c);
+    return renderRankedCard(c, i + 1, i);
+  }).join("");
+}
+
+resultsState.addEventListener("click", (e) => {
+  const btn = e.target.closest(".shortlist-btn");
+  if (!btn) return;
+  const idx = parseInt(btn.dataset.candidateIndex, 10);
+  if (shortlistedCandidates.has(idx)) {
+    shortlistedCandidates.delete(idx);
+  } else {
+    shortlistedCandidates.add(idx);
+  }
+  renderFilteredList();
+  renderShortlistSection();
+});
+
+filterChipsEl.addEventListener("click", (e) => {
+  const chip = e.target.closest(".filter-chip");
+  if (!chip) return;
+  activeFilter = chip.dataset.filter;
+  filterChipsEl.querySelectorAll(".filter-chip").forEach(c => c.classList.remove("filter-chip--active"));
+  chip.classList.add("filter-chip--active");
+  renderFilteredList();
+});
 
 // ── Notify / email ───────────────────────────────────────────────────────────
 
@@ -399,6 +469,156 @@ function renderPastCard(candidate, rank) {
     </article>
   `;
 }
+
+// ── CSV export ───────────────────────────────────────────────────────────────
+
+function csvCell(val) {
+  const s = String(val ?? "");
+  return s.includes(",") || s.includes('"') || s.includes("\n")
+    ? `"${s.replace(/"/g, '""')}"`
+    : s;
+}
+
+function downloadCsv() {
+  const tierLabel = (t) =>
+    t === "high_priority" ? "High Priority" : t === "qualified" ? "Qualified" : "Review";
+
+  const headers = [
+    "Rank", "Candidate Name", "Current Title", "Location", "Contact",
+    "Years Experience", "Match Score", "Tier", "Matched Skills", "Missing Skills",
+    "Matched Certifications", "Missing Certifications", "AI Summary",
+    "Job Title", "Department", "Date Exported"
+  ];
+
+  const dateExported = new Date().toISOString();
+  const jobTitle    = currentJob?.title      || "";
+  const department  = currentJob?.department || "";
+
+  const rows = currentCandidates.map((c, i) => [
+    i + 1,
+    c.name,
+    c.currentTitle               || "",
+    c.location                   || "",
+    c.contactInfo                || "",
+    c.yearsExperience            ?? "",
+    c.score,
+    tierLabel(c.tier),
+    (c.matchedSkills          || []).join("|"),
+    (c.missingSkills          || []).join("|"),
+    (c.matchedCertifications  || []).join("|"),
+    (c.missingCertifications  || []).join("|"),
+    c.reason                     || "",
+    jobTitle,
+    department,
+    dateExported
+  ].map(csvCell).join(","));
+
+  const csv  = [headers.join(","), ...rows].join("\r\n");
+  const slug = (jobTitle || "candidates")
+    .toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+  const date = dateExported.slice(0, 10);
+
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement("a");
+  a.href     = url;
+  a.download = `hiringdesk-${slug}-${date}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+csvBtn.addEventListener("click", () => {
+  if (currentCandidates.length) downloadCsv();
+});
+
+// ── Integrations panel ───────────────────────────────────────────────────────
+
+integrationsToggle.addEventListener("click", () => {
+  const isOpen = integrationsBody.style.display !== "none";
+  integrationsBody.style.display = isOpen ? "none" : "grid";
+  integrationsChevron.classList.toggle("integrations-chevron--open", !isOpen);
+});
+
+function buildWebhookPayload() {
+  const counts = currentCandidates.reduce(
+    (acc, c) => { acc[c.tier === "high_priority" ? "high_priority" : c.tier === "qualified" ? "qualified" : "review"]++; return acc; },
+    { high_priority: 0, qualified: 0, review: 0 }
+  );
+  const avgScore = currentCandidates.length
+    ? Math.round(currentCandidates.reduce((s, c) => s + c.score, 0) / currentCandidates.length)
+    : 0;
+  return {
+    event: "candidates_ranked",
+    timestamp: new Date().toISOString(),
+    job: currentJob,
+    stats: { total: currentCandidates.length, ...counts, average_score: avgScore },
+    candidates: currentCandidates
+  };
+}
+
+async function sendWebhook(url, authToken, btnEl, msgEl) {
+  if (!url) {
+    msgEl.textContent = "Enter a webhook URL first.";
+    msgEl.className = "support-copy notify-feedback error-text";
+    return;
+  }
+  const originalText = btnEl.textContent;
+  btnEl.disabled = true;
+  btnEl.textContent = "Sending…";
+  msgEl.textContent = "";
+  msgEl.className = "support-copy notify-feedback";
+
+  try {
+    const body = { url, payload: buildWebhookPayload() };
+    if (authToken) body.authorization = authToken;
+
+    const response = await fetch("/api/integrations/webhook", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+    const data = await response.json();
+    if (!response.ok || !data.success) throw new Error(data.error || "Webhook delivery failed.");
+
+    msgEl.textContent = "Sent successfully.";
+    msgEl.className = "support-copy notify-feedback success-text";
+  } catch (err) {
+    msgEl.textContent = err.message;
+    msgEl.className = "support-copy notify-feedback error-text";
+  } finally {
+    btnEl.disabled = false;
+    btnEl.textContent = originalText;
+  }
+}
+
+document.getElementById("zapierBtn").addEventListener("click", () => {
+  sendWebhook(
+    document.getElementById("zapierUrl").value.trim(),
+    null,
+    document.getElementById("zapierBtn"),
+    document.getElementById("zapierMessage")
+  );
+});
+
+document.getElementById("makeBtn").addEventListener("click", () => {
+  sendWebhook(
+    document.getElementById("makeUrl").value.trim(),
+    null,
+    document.getElementById("makeBtn"),
+    document.getElementById("makeMessage")
+  );
+});
+
+document.getElementById("webhookBtn").addEventListener("click", () => {
+  sendWebhook(
+    document.getElementById("webhookUrl").value.trim(),
+    document.getElementById("webhookToken").value.trim(),
+    document.getElementById("webhookBtn"),
+    document.getElementById("webhookMessage")
+  );
+});
 
 // ── Utilities ────────────────────────────────────────────────────────────────
 

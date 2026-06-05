@@ -19,12 +19,13 @@
     "better-sqlite3": "^9.4.3",
     "dotenv": "^16.4.5",
     "express": "^4.19.0",
+    "express-rate-limit": "^8.5.2",
     "multer": "^1.4.5-lts.1",
     "nodemailer": "^6.9.13",
     "pdfjs-dist": "^6.0.227"
   },
   "devDependencies": {
-    "electron": "^36.0.0",
+    "electron": "^28.3.3",
     "electron-builder": "^25.0.0"
   },
   "build": {
@@ -64,7 +65,7 @@
           ]
         }
       ],
-      "icon": "assets/icon.icns"
+      "icon": "assets/icon.png"
     },
     "win": {
       "target": [
@@ -82,12 +83,10 @@
     },
     "nsis": {
       "oneClick": false,
-      "allowDirChange": true,
+      "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true
     },
-    "electronRebuild": {
-      "buildFromSource": true
-    },
+    "buildDependenciesFromSource": true,
     "publish": {
       "provider": "github",
       "releaseType": "release"

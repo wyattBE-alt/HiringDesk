@@ -34,6 +34,7 @@
 
       <!-- ── Sidebar ── -->
       <aside class="sidebar">
+        <a href="/" class="home-btn">Home</a>
         <div class="brand-block">
           <p class="eyebrow">Talent Sourcing Engine</p>
           <h1>HiringDesk</h1>
@@ -74,9 +75,6 @@
 
             <label class="field-label" for="additionalNotes">Additional Notes</label>
             <input id="additionalNotes" class="input-shell" type="text" placeholder="Startup experience preferred, no relocation..." />
-
-            <label class="field-label" for="notificationEmail">Hiring Manager Email</label>
-            <input id="notificationEmail" class="input-shell" type="email" placeholder="manager@company.com" />
           </section>
 
           <!-- Candidate import -->
@@ -208,8 +206,61 @@
               />
               <button id="notifyBtn" class="action-button success-action">Email Report</button>
               <button id="previewEmailBtn" class="action-button secondary-action">Preview</button>
+              <button id="csvBtn" class="action-button secondary-action">Download CSV</button>
             </div>
             <p id="notifyMessage" class="support-copy notify-feedback"></p>
+          </div>
+
+          <!-- Integrations panel -->
+          <div class="integrations-panel">
+            <button type="button" id="integrationsToggle" class="integrations-toggle">
+              <div class="integrations-toggle-label">
+                <span class="integrations-toggle-title">Integrations</span>
+                <span class="integrations-toggle-sub">Send results to Zapier, Make, or any custom webhook</span>
+              </div>
+              <span id="integrationsChevron" class="integrations-chevron">▸</span>
+            </button>
+            <div id="integrationsBody" class="integrations-body" style="display:none">
+
+              <!-- Zapier -->
+              <div class="integration-section">
+                <p class="integration-title">Zapier</p>
+                <p class="support-copy">Paste your Zapier Catch Hook URL to trigger any Zap.</p>
+                <div class="integration-row">
+                  <input id="zapierUrl" class="input-shell integration-input" type="url" placeholder="https://hooks.zapier.com/hooks/catch/…" />
+                  <button id="zapierBtn" type="button" class="action-button secondary-action">Send to Zapier</button>
+                </div>
+                <p id="zapierMessage" class="support-copy notify-feedback"></p>
+              </div>
+
+              <div class="integrations-divider"></div>
+
+              <!-- Make -->
+              <div class="integration-section">
+                <p class="integration-title">Make (Integromat)</p>
+                <p class="support-copy">Paste your Make webhook URL to trigger a scenario.</p>
+                <div class="integration-row">
+                  <input id="makeUrl" class="input-shell integration-input" type="url" placeholder="https://hook.eu1.make.com/…" />
+                  <button id="makeBtn" type="button" class="action-button secondary-action">Send to Make</button>
+                </div>
+                <p id="makeMessage" class="support-copy notify-feedback"></p>
+              </div>
+
+              <div class="integrations-divider"></div>
+
+              <!-- Custom Webhook -->
+              <div class="integration-section">
+                <p class="integration-title">Custom Webhook</p>
+                <p class="support-copy">POST ranked results to any HTTPS endpoint. Optionally include a Bearer token.</p>
+                <div class="integration-row">
+                  <input id="webhookUrl" class="input-shell integration-input" type="url" placeholder="https://your-endpoint.com/webhook" />
+                  <button id="webhookBtn" type="button" class="action-button secondary-action">Send Webhook</button>
+                </div>
+                <input id="webhookToken" class="input-shell" type="text" placeholder="Bearer token (optional)" style="margin-top:2px" />
+                <p id="webhookMessage" class="support-copy notify-feedback"></p>
+              </div>
+
+            </div>
           </div>
 
           <!-- Past applicants from database -->
@@ -223,6 +274,25 @@
               <span id="pastChip" class="status-chip loading">Checking</span>
             </div>
             <div id="pastList" class="ranked-list"></div>
+          </div>
+
+          <!-- My Shortlist -->
+          <div id="shortlistSection" class="shortlist-section" style="display:none">
+            <div class="shortlist-header">
+              <div>
+                <h3 class="shortlist-title">My Shortlist</h3>
+                <p id="shortlistCount" class="shortlist-subtitle"></p>
+              </div>
+            </div>
+            <div id="shortlistList" class="ranked-list"></div>
+          </div>
+
+          <!-- Filter chips -->
+          <div id="filterChips" class="filter-chips">
+            <button type="button" class="filter-chip filter-chip--active" data-filter="all">All</button>
+            <button type="button" class="filter-chip" data-filter="high_priority">High Priority</button>
+            <button type="button" class="filter-chip" data-filter="qualified">Qualified</button>
+            <button type="button" class="filter-chip" data-filter="review">Review</button>
           </div>
 
           <!-- Ranked list -->

@@ -7,6 +7,7 @@ import { fileURLToPath, pathToFileURL } from "url";
 import path from "path";
 import { createRequire } from "module";
 import { saveJobAndCandidates, getPastCandidates, getCandidateCount } from "./db.js";
+import rateLimit from "express-rate-limit";
 
 const _require = createRequire(import.meta.url);
 
@@ -15,6 +16,34 @@ const app = express();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
 app.use(express.json({ limit: "5mb" }));
+
+// ── Rate limiting ─────────────────────────────────────────────────────────────
+// Protects against API abuse and runaway Anthropic billing.
+
+// Heavy AI endpoints — 10 requests per 15 minutes per IP
+const aiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many requests. Please wait a few minutes and try again." }
+});
+
+// Light endpoints (notify, past-match, webhook proxy) — 30 per 15 minutes per IP
+const lightLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many requests. Please wait a few minutes and try again." }
+});
+
+app.use("/api/analyze",              aiLimiter);
+app.use("/api/tailor",               aiLimiter);
+app.use("/api/recruiter/rank",       aiLimiter);
+app.use("/api/recruiter/notify",     lightLimiter);
+app.use("/api/recruiter/past-match", lightLimiter);
+app.use("/api/integrations",         lightLimiter);
 
 // Home page — must be before express.static so it intercepts "/"
 // (express.static defaults "/" to index.html; we want home.html)
@@ -695,6 +724,47 @@ app.post("/api/recruiter/notify", async (req, res) => {
   } catch (err) {
     console.error("Notify error:", err);
     res.status(500).json({ error: err.message || "Notification failed." });
+  }
+});
+
+// ─────────────────────────────────────────────
+//  INTEGRATIONS
+// ─────────────────────────────────────────────
+
+app.post("/api/integrations/webhook", async (req, res) => {
+  try {
+    const { url, payload, authorization } = req.body;
+
+    if (!url)
+      return res.status(400).json({ success: false, error: "url is required." });
+    if (!url.startsWith("https://"))
+      return res.status(400).json({ success: false, error: "url must start with https://." });
+    try { new URL(url); } catch {
+      return res.status(400).json({ success: false, error: "url is not a valid URL." });
+    }
+    if (!payload)
+      return res.status(400).json({ success: false, error: "payload is required." });
+
+    const headers = { "Content-Type": "application/json" };
+    if (authorization) headers["Authorization"] = `Bearer ${authorization}`;
+
+    const destRes = await fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(payload)
+    });
+
+    if (!destRes.ok) {
+      const text = await destRes.text().catch(() => "");
+      return res.status(502).json({
+        success: false,
+        error: `Destination returned ${destRes.status}${text ? ": " + text.slice(0, 200) : ""}.`
+      });
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message || "Webhook delivery failed." });
   }
 });
 
