@@ -75,6 +75,7 @@ analyzeForm.addEventListener("submit", async (e) => {
   formData.append("location", jobLocation);
   const credentials = collectCredentials();
   if (credentials.length) formData.append("credentials", JSON.stringify(credentials));
+  if (document.getElementById("allowRecruiterSearch")?.checked) formData.append("allowRecruiterSearch", "true");
 
   setStatus("loading", "Searching live job listings and analyzing your resume — this takes about 15–20 seconds…");
   analyzeBtn.disabled = true;

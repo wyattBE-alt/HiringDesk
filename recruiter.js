@@ -674,6 +674,241 @@ document.getElementById("webhookBtn").addEventListener("click", () => {
   );
 });
 
+// ── Talent Pool ──────────────────────────────────────────────────────────────
+
+let talentPoolCandidates = [];
+let poolSelectedSet = new Set();
+let poolLoaded = false;
+
+const rankView            = document.getElementById("rankView");
+const poolView            = document.getElementById("poolView");
+const candidatePoolSec    = document.getElementById("candidatePoolSection");
+const rankSubmitArea      = document.getElementById("rankSubmitArea");
+const poolGrid            = document.getElementById("poolGrid");
+const poolSelectBar       = document.getElementById("poolSelectBar");
+const poolSelectInfo      = document.getElementById("poolSelectInfo");
+const poolStatusBar       = document.getElementById("poolStatusBar");
+const poolStatusText      = document.getElementById("poolStatusText");
+const poolScoreVal        = document.getElementById("poolScoreVal");
+
+// ── Tab switching ─────────────────────────────────────────────────────────────
+
+document.getElementById("viewTabs").addEventListener("click", (e) => {
+  const tab = e.target.closest(".view-tab");
+  if (!tab) return;
+  const view = tab.dataset.view;
+
+  document.querySelectorAll(".view-tab").forEach(t =>
+    t.classList.toggle("view-tab--active", t.dataset.view === view)
+  );
+
+  if (view === "rank") {
+    rankView.style.display = "";
+    poolView.style.display = "none";
+    candidatePoolSec.style.display = "";
+    rankSubmitArea.style.display = "";
+  } else {
+    rankView.style.display = "none";
+    poolView.style.display = "";
+    candidatePoolSec.style.display = "none";
+    rankSubmitArea.style.display = "none";
+    if (!poolLoaded) loadTalentPool();
+  }
+});
+
+// ── Load & render pool ────────────────────────────────────────────────────────
+
+async function loadTalentPool() {
+  const skills   = document.getElementById("poolSkillsFilter").value.trim();
+  const minScore = document.getElementById("poolScoreFilter").value;
+
+  poolGrid.innerHTML = `<div class="pool-empty-card"><p>Loading talent pool…</p></div>`;
+  poolStatusBar.style.display = "none";
+
+  const token  = localStorage.getItem("hd_token") || "";
+  const params = new URLSearchParams({ minScore });
+  if (skills) params.set("skills", skills);
+
+  try {
+    const res  = await fetch(`/api/recruiter/talent-pool?${params}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {}
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      const msg = (res.status === 401 || res.status === 403)
+        ? "Sign in as a recruiter to access the Talent Pool."
+        : (data.error || "Failed to load talent pool.");
+      poolGrid.innerHTML = `<div class="pool-empty-card"><p>${escapeHtml(msg)}</p></div>`;
+      return;
+    }
+
+    talentPoolCandidates = data.candidates || [];
+    poolSelectedSet      = new Set();
+    poolLoaded           = true;
+
+    poolStatusBar.style.display = "flex";
+    poolStatusText.textContent  =
+      `${talentPoolCandidates.length} candidate${talentPoolCandidates.length !== 1 ? "s" : ""} · ${data.totalInDb} total in database`;
+
+    renderPoolGrid();
+  } catch (err) {
+    poolGrid.innerHTML = `<div class="pool-empty-card"><p>${escapeHtml(err.message)}</p></div>`;
+  }
+}
+
+function renderPoolGrid() {
+  updatePoolSelectBar();
+  if (!talentPoolCandidates.length) {
+    poolGrid.innerHTML = `<div class="pool-empty-card"><p>No candidates found. Try lowering the minimum score or clearing the skills filter.</p></div>`;
+    return;
+  }
+  poolGrid.innerHTML = talentPoolCandidates.map((c, i) => renderPoolCard(c, i)).join("");
+}
+
+function renderPoolCard(c, index) {
+  const { name, currentTitle, location, yearsExperience, skills, bestScore, status } = c;
+  const selected     = poolSelectedSet.has(index);
+  const scoreClass   = bestScore >= 75 ? "qualified" : bestScore >= 50 ? "borderline" : "stretch";
+  const statusLabel  = { new: "New", interview_scheduled: "Interview", hired: "Hired", rejected: "Rejected" }[status] || "New";
+  const statusClass  = { hired: "success", interview_scheduled: "loading", rejected: "error", new: "neutral" }[status] || "neutral";
+  const topSkills    = (skills || []).slice(0, 4);
+
+  return `
+    <article class="pool-card${selected ? " pool-card--selected" : ""}" data-pool-index="${index}">
+      <label class="pool-card-check" onclick="event.stopPropagation()">
+        <input type="checkbox" class="pool-checkbox" data-pool-index="${index}"${selected ? " checked" : ""} />
+      </label>
+      <div class="pool-card-top">
+        <div class="pool-card-score ${scoreClass}">${bestScore}</div>
+        <div class="pool-card-info">
+          <h4 class="pool-card-name">${escapeHtml(name)}</h4>
+          ${currentTitle ? `<p class="pool-card-title">${escapeHtml(currentTitle)}</p>` : ""}
+        </div>
+      </div>
+      ${(location || yearsExperience != null) ? `
+      <div class="pool-card-meta">
+        ${location ? `<span>📍 ${escapeHtml(location)}</span>` : ""}
+        ${yearsExperience != null ? `<span>⏱ ${yearsExperience} yr${yearsExperience !== 1 ? "s" : ""}</span>` : ""}
+      </div>` : ""}
+      ${topSkills.length ? `
+      <div class="pool-card-skills">
+        ${topSkills.map(s => `<span class="skill-tag skill-tag--matched">${escapeHtml(s)}</span>`).join("")}
+      </div>` : ""}
+      <div class="pool-card-footer">
+        <span class="status-chip ${statusClass}">${statusLabel}</span>
+      </div>
+    </article>`;
+}
+
+// ── Selection management ──────────────────────────────────────────────────────
+
+poolView.addEventListener("change", (e) => {
+  const cb = e.target.closest(".pool-checkbox");
+  if (!cb) return;
+  const idx = parseInt(cb.dataset.poolIndex, 10);
+  cb.checked ? poolSelectedSet.add(idx) : poolSelectedSet.delete(idx);
+  cb.closest(".pool-card").classList.toggle("pool-card--selected", cb.checked);
+  updatePoolSelectBar();
+});
+
+poolView.addEventListener("click", (e) => {
+  const card = e.target.closest(".pool-card");
+  if (!card || e.target.closest(".pool-card-check")) return;
+  const idx = parseInt(card.dataset.poolIndex, 10);
+  const cb  = card.querySelector(".pool-checkbox");
+  cb.checked = !cb.checked;
+  cb.checked ? poolSelectedSet.add(idx) : poolSelectedSet.delete(idx);
+  card.classList.toggle("pool-card--selected", cb.checked);
+  updatePoolSelectBar();
+});
+
+function updatePoolSelectBar() {
+  const count = poolSelectedSet.size;
+  if (count === 0) {
+    poolSelectBar.style.display = "none";
+    return;
+  }
+  poolSelectBar.style.display = "flex";
+  poolSelectInfo.textContent  = `${count} candidate${count !== 1 ? "s" : ""} selected`;
+}
+
+// ── Filter controls ───────────────────────────────────────────────────────────
+
+document.getElementById("poolSearchBtn").addEventListener("click", () => {
+  poolLoaded = false;
+  loadTalentPool();
+});
+
+document.getElementById("poolScoreFilter").addEventListener("input", (e) => {
+  poolScoreVal.textContent = e.target.value;
+});
+
+document.getElementById("poolSkillsFilter").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") { poolLoaded = false; loadTalentPool(); }
+});
+
+document.getElementById("poolSelectAllBtn").addEventListener("click", () => {
+  talentPoolCandidates.forEach((_, i) => poolSelectedSet.add(i));
+  poolGrid.querySelectorAll(".pool-card").forEach(card => {
+    card.classList.add("pool-card--selected");
+    card.querySelector(".pool-checkbox").checked = true;
+  });
+  updatePoolSelectBar();
+});
+
+document.getElementById("poolClearBtn").addEventListener("click", () => {
+  poolSelectedSet.clear();
+  poolGrid.querySelectorAll(".pool-card").forEach(card => {
+    card.classList.remove("pool-card--selected");
+    card.querySelector(".pool-checkbox").checked = false;
+  });
+  updatePoolSelectBar();
+});
+
+// ── Rank Selected ─────────────────────────────────────────────────────────────
+
+document.getElementById("poolRankBtn").addEventListener("click", async () => {
+  if (!poolSelectedSet.size) return;
+
+  const selected  = [...poolSelectedSet].map(i => talentPoolCandidates[i]).filter(Boolean);
+  const batchText = selected.map(c => c.resumeText || "").filter(Boolean).join("\n----\n");
+
+  if (!batchText.trim()) {
+    setStatus("error", "Selected candidates have no resume text stored.");
+    document.querySelector('[data-view="rank"]').click();
+    return;
+  }
+
+  // Switch to rank view
+  document.querySelector('[data-view="rank"]').click();
+
+  const formData = new FormData();
+  formData.append("jobTitle",               document.getElementById("jobTitle").value.trim() || "Open Role");
+  formData.append("department",             document.getElementById("department").value.trim());
+  formData.append("jobLocation",            document.getElementById("jobLocation").value.trim());
+  formData.append("requiredSkills",         document.getElementById("requiredSkills").value.trim());
+  formData.append("requiredCertifications", document.getElementById("requiredCertifications").value.trim());
+  formData.append("minYearsExp",            document.getElementById("minYearsExp").value.trim());
+  formData.append("additionalNotes",        document.getElementById("additionalNotes").value.trim());
+  formData.append("batchText",              batchText);
+
+  setStatus("loading", `Ranking ${selected.length} selected candidate${selected.length !== 1 ? "s" : ""} from Talent Pool…`);
+  rankBtn.disabled = true;
+
+  try {
+    const response = await fetch("/api/recruiter/rank", { method: "POST", body: formData });
+    const data     = await response.json();
+    if (!response.ok) throw new Error(data.error || "Ranking failed.");
+    renderResults(data);
+    setStatus("success", `Ranked ${selected.length} candidates from Talent Pool. Showing top ${data.candidates.length}.`);
+  } catch (err) {
+    setStatus("error", err.message);
+  } finally {
+    rankBtn.disabled = false;
+  }
+});
+
 // ── Utilities ────────────────────────────────────────────────────────────────
 
 function escapeHtml(str) {
