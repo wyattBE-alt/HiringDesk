@@ -103,6 +103,14 @@
           </button>
           <p id="analyzeMessage" class="support-copy"></p>
         </form>
+
+        <!-- Score history panel -->
+        <section class="sidebar-panel" id="scoreHistoryPanel" style="display:none">
+          <div class="panel-head">
+            <p class="panel-label">Score History</p>
+          </div>
+          <ul id="scoreHistoryList" class="score-history-list"></ul>
+        </section>
       </aside>
 
       <main class="main-stage">
@@ -237,7 +245,84 @@
     </div>
 
     <script src="./app.js"></script>
-    <script>
+    <script type="module">
+      import { initAuth, openModal, getToken } from "/auth.js";
+
+      // Init sidebar auth panel + nav
+      let _currentUser = null;
+      async function bootAuth() {
+        _currentUser = await initAuth({ sidebar: true, dashboardHref: "/dashboard-applicant.html" });
+        // After login inside the modal, re-init sidebar
+        window.addEventListener("hd:authed", async (e) => {
+          _currentUser = e.detail;
+          await initAuth({ sidebar: true, dashboardHref: "/dashboard-applicant.html" });
+        });
+      }
+      bootAuth();
+
+      // Hook: after analysis completes, show save banner
+      window.addEventListener("hd:analysis-complete", async (e) => {
+        const { resumeText, avgScore, topSkills, assessments } = e.detail;
+        const existing = document.getElementById("hd-save-banner");
+        if (existing) existing.remove();
+
+        const banner = document.createElement("div");
+        banner.id = "hd-save-banner";
+        banner.className = "hd-save-banner";
+
+        if (_currentUser) {
+          banner.innerHTML = `
+            <div class="hd-save-banner-text"><strong>Save this analysis?</strong> Log it to your dashboard to track your score over time.</div>
+            <button class="hd-save-btn" id="hdSaveBtn">Save Snapshot</button>
+          `;
+          banner.querySelector("#hdSaveBtn").addEventListener("click", async (evt) => {
+            const btn = evt.currentTarget;
+            btn.disabled = true; btn.textContent = "Saving…";
+            try {
+              await fetch("/api/user/snapshots", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "Authorization": `Bearer ${getToken()}` },
+                body: JSON.stringify({ resumeText, avgScore, topSkills })
+              });
+              btn.textContent = "Saved ✓"; btn.classList.add("saved");
+            } catch { btn.textContent = "Error"; btn.disabled = false; }
+          });
+        } else {
+          banner.innerHTML = `
+            <div class="hd-save-banner-text"><strong>Sign up free</strong> to save your score history and track applications over time.</div>
+            <button class="hd-save-btn" id="hdSignupBannerBtn">Save Progress</button>
+          `;
+          banner.querySelector("#hdSignupBannerBtn").addEventListener("click", () => openModal("register"));
+        }
+
+        // Insert below the analyzeMessage
+        const msg = document.getElementById("analyzeMessage");
+        if (msg) msg.insertAdjacentElement("afterend", banner);
+      });
+
+      // Hook: "Log Application" on job cards
+      document.addEventListener("click", async (e) => {
+        const btn = e.target.closest(".hd-log-app-btn");
+        if (!btn) return;
+        const { jobTitle, company, applyUrl, score, matchedSkills, missingSkills } = btn.dataset;
+        if (!_currentUser) { openModal("login"); return; }
+        btn.disabled = true; btn.textContent = "Logging…";
+        try {
+          await fetch("/api/user/applications", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "Authorization": `Bearer ${getToken()}` },
+            body: JSON.stringify({
+              jobTitle, company, applyUrl: applyUrl || "",
+              score: parseInt(score) || null,
+              matchedSkills: JSON.parse(matchedSkills || "[]"),
+              missingSkills: JSON.parse(missingSkills || "[]"),
+              status: "applied"
+            })
+          });
+          btn.textContent = "Logged ✓"; btn.classList.add("saved");
+        } catch { btn.disabled = false; btn.textContent = "Log App"; }
+      });
+
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('/sw.js').catch(() => {});
       }

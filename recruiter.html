@@ -78,7 +78,7 @@
           </section>
 
           <!-- Candidate import -->
-          <section class="sidebar-panel">
+          <section class="sidebar-panel" id="candidatePoolSection">
             <p class="panel-label">Candidate Pool</p>
 
             <label class="field-label" for="resumeFiles">Upload Resumes (multiple)</label>
@@ -99,13 +99,24 @@
             ></textarea>
           </section>
 
-          <button type="submit" class="primary-button" id="rankBtn">Rank Candidates</button>
-          <p id="rankMessage" class="support-copy"></p>
+          <div id="rankSubmitArea">
+            <button type="submit" class="primary-button" id="rankBtn">Rank Candidates</button>
+            <p id="rankMessage" class="support-copy"></p>
+          </div>
         </form>
       </aside>
 
       <!-- ── Main stage ── -->
       <main class="main-stage">
+
+        <!-- View tabs -->
+        <div class="view-tabs" id="viewTabs">
+          <button class="view-tab view-tab--active" data-view="rank">Rank New Batch</button>
+          <button class="view-tab" data-view="pool">Talent Pool</button>
+        </div>
+
+        <!-- ── Rank view (existing) ── -->
+        <div id="rankView">
 
         <!-- Empty state -->
         <section class="hero-card" id="emptyState">
@@ -298,6 +309,49 @@
           <!-- Ranked list -->
           <div id="rankedList" class="ranked-list"></div>
         </div>
+
+        </div><!-- /#rankView -->
+
+        <!-- ── Pool view ── -->
+        <div id="poolView" style="display:none">
+
+          <!-- Filter bar -->
+          <div class="pool-filter-bar">
+            <div class="pool-filter-group">
+              <label class="field-label" for="poolSkillsFilter">Filter by Skills</label>
+              <input id="poolSkillsFilter" class="input-shell" type="text" placeholder="React, Python, AWS — leave blank for all" />
+            </div>
+            <div class="pool-filter-group pool-filter-group--score">
+              <label class="field-label" for="poolScoreFilter">Min Score: <span id="poolScoreVal">50</span></label>
+              <input id="poolScoreFilter" class="pool-score-slider" type="range" min="0" max="100" value="50" step="5" />
+            </div>
+            <button id="poolSearchBtn" type="button" class="action-button secondary-action">Search Pool</button>
+          </div>
+
+          <!-- Status bar -->
+          <div id="poolStatusBar" class="pool-status-bar" style="display:none">
+            <span id="poolStatusText" class="pool-status-text"></span>
+            <button id="poolSelectAllBtn" type="button" class="action-button secondary-action" style="font-size:0.75rem;padding:5px 12px">Select All</button>
+          </div>
+
+          <!-- Card grid -->
+          <div id="poolGrid" class="pool-grid">
+            <div class="pool-empty-card">
+              <p>Fill in job requirements in the sidebar, then click "Search Pool" to browse your candidate database.</p>
+            </div>
+          </div>
+
+          <!-- Sticky rank-selected bar -->
+          <div id="poolSelectBar" class="pool-select-bar" style="display:none">
+            <span id="poolSelectInfo" class="pool-select-info">0 selected</span>
+            <div style="display:flex;gap:8px;align-items:center">
+              <button id="poolClearBtn" type="button" class="action-button secondary-action" style="font-size:0.78rem;padding:7px 14px">Clear</button>
+              <button id="poolRankBtn" type="button" class="primary-button" style="padding:10px 22px">Rank Selected →</button>
+            </div>
+          </div>
+
+        </div><!-- /#poolView -->
+
       </main>
     </div>
 
@@ -317,7 +371,10 @@
     </div>
 
     <script src="./recruiter.js"></script>
-    <script>
+    <script type="module">
+      import { initAuth } from "/auth.js";
+      initAuth({ sidebar: true, dashboardHref: "/dashboard-recruiter.html" });
+      window.addEventListener("hd:authed", () => initAuth({ sidebar: true, dashboardHref: "/dashboard-recruiter.html" }));
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('/sw.js').catch(() => {});
       }

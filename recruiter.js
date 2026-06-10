@@ -2,6 +2,7 @@
 
 let currentJob = null;
 let currentCandidates = [];
+let currentCandidateIds = [];
 let previewHtml = "";
 let pastMatchController = null;
 let shortlistedCandidates = new Set();
@@ -110,9 +111,10 @@ function setStatus(mode, message) {
 // ── Render results ───────────────────────────────────────────────────────────
 
 function renderResults(data) {
-  const { job, candidates, stats } = data;
+  const { job, candidates, stats, candidateIds = [] } = data;
   currentJob = job;
   currentCandidates = candidates;
+  currentCandidateIds = candidateIds;
   previewHtml = "";
   shortlistedCandidates = new Set();
   activeFilter = "all";
@@ -151,6 +153,7 @@ function renderResults(data) {
 function renderRankedCard(candidate, rank, index) {
   const { name, currentTitle, location, contactInfo, yearsExperience, score, tier,
     matchedSkills, missingSkills, matchedCertifications, missingCertifications, reason } = candidate;
+  const candidateId = currentCandidateIds[index] || "";
 
   const isShortlisted = shortlistedCandidates.has(index);
 
@@ -205,6 +208,12 @@ function renderRankedCard(candidate, rank, index) {
               </div>
             </div>
             <button type="button" class="shortlist-btn${isShortlisted ? " shortlist-btn--active" : ""}" data-candidate-index="${index}" aria-pressed="${isShortlisted}">${isShortlisted ? "★ Shortlisted" : "☆ Shortlist"}</button>
+            ${candidateId ? `<select class="status-select" data-candidate-id="${candidateId}" data-matched-skills="${escapeHtml(JSON.stringify(matchedSkills || []))}" data-matched-certs="${escapeHtml(JSON.stringify(matchedCertifications || []))}">
+              <option value="new">New</option>
+              <option value="interview_scheduled">Interview Scheduled</option>
+              <option value="hired">Hired</option>
+              <option value="rejected">Rejected</option>
+            </select>` : ""}
           </div>
 
           <p class="cand-reason">${escapeHtml(reason || "")}</p>
@@ -276,6 +285,31 @@ resultsState.addEventListener("click", (e) => {
   }
   renderFilteredList();
   renderShortlistSection();
+});
+
+async function updateCandidateStatus(selectEl) {
+  const candidateId = parseInt(selectEl.dataset.candidateId, 10);
+  const status = selectEl.value;
+  const matchedSkills = JSON.parse(selectEl.dataset.matchedSkills || "[]");
+  const matchedCerts = JSON.parse(selectEl.dataset.matchedCerts || "[]");
+  selectEl.disabled = true;
+  try {
+    await fetch("/api/recruiter/candidate/status", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ candidateId, status, skills: matchedSkills, certs: matchedCerts }),
+    });
+    selectEl.classList.toggle("status-select--hired", status === "hired");
+    selectEl.classList.toggle("status-select--rejected", status === "rejected");
+    selectEl.classList.toggle("status-select--interview", status === "interview_scheduled");
+  } finally {
+    selectEl.disabled = false;
+  }
+}
+
+document.addEventListener("change", (e) => {
+  const sel = e.target.closest(".status-select");
+  if (sel) updateCandidateStatus(sel);
 });
 
 filterChipsEl.addEventListener("click", (e) => {
@@ -425,8 +459,8 @@ function renderPastMatches({ candidates, totalInDb }) {
 }
 
 function renderPastCard(candidate, rank) {
-  const { name, currentTitle, location, contactInfo, yearsExperience,
-    score, matchedSkills, missingSkills } = candidate;
+  const { id, name, currentTitle, location, contactInfo, yearsExperience,
+    score, matchedSkills, missingSkills, matchedCerts, missingCerts, status = "new" } = candidate;
 
   const scoreClass = score >= 75 ? "qualified" : score >= 50 ? "borderline" : "stretch";
   const tierLabel = score >= 75 ? "Strong Match" : score >= 50 ? "Possible Match" : "Partial Match";
@@ -441,14 +475,22 @@ function renderPastCard(candidate, rank) {
           <span class="tier-badge ${tierBadgeClass}">${tierLabel}</span>
         </div>
         <div class="cand-col">
-          <div class="cand-header">
-            <h4 class="cand-name">${escapeHtml(name)}</h4>
-            <div class="cand-meta-row">
-              ${currentTitle ? `<span class="meta-pill">${escapeHtml(currentTitle)}</span>` : ""}
-              ${location ? `<span class="meta-pill">📍 ${escapeHtml(location)}</span>` : ""}
-              ${yearsExperience != null ? `<span class="meta-pill">⏱ ${yearsExperience} yr${yearsExperience !== 1 ? "s" : ""}</span>` : ""}
-              ${contactInfo ? `<span class="meta-pill meta-pill--contact">✉ ${escapeHtml(contactInfo)}</span>` : ""}
+          <div class="cand-header-row">
+            <div class="cand-header">
+              <h4 class="cand-name">${escapeHtml(name)}</h4>
+              <div class="cand-meta-row">
+                ${currentTitle ? `<span class="meta-pill">${escapeHtml(currentTitle)}</span>` : ""}
+                ${location ? `<span class="meta-pill">📍 ${escapeHtml(location)}</span>` : ""}
+                ${yearsExperience != null ? `<span class="meta-pill">⏱ ${yearsExperience} yr${yearsExperience !== 1 ? "s" : ""}</span>` : ""}
+                ${contactInfo ? `<span class="meta-pill meta-pill--contact">✉ ${escapeHtml(contactInfo)}</span>` : ""}
+              </div>
             </div>
+            <select class="status-select" data-candidate-id="${id}" data-matched-skills="${escapeHtml(JSON.stringify(matchedSkills || []))}" data-matched-certs="${escapeHtml(JSON.stringify(matchedCerts || []))}">
+              <option value="new"${status === "new" ? " selected" : ""}>New</option>
+              <option value="interview_scheduled"${status === "interview_scheduled" ? " selected" : ""}>Interview Scheduled</option>
+              <option value="hired"${status === "hired" ? " selected" : ""}>Hired</option>
+              <option value="rejected"${status === "rejected" ? " selected" : ""}>Rejected</option>
+            </select>
           </div>
           <div class="skills-row">
             ${matchedSkills?.length
@@ -461,6 +503,18 @@ function renderPastCard(candidate, rank) {
               ? `<div class="skills-group skills-group--missing">
                   <span class="skills-label">✗ Missing:</span>
                   ${missingSkills.map((s) => `<span class="skill-tag skill-tag--missing">${escapeHtml(s)}</span>`).join("")}
+                </div>`
+              : ""}
+            ${matchedCerts?.length
+              ? `<div class="skills-group skills-group--matched">
+                  <span class="skills-label">✓ Certs:</span>
+                  ${matchedCerts.map((s) => `<span class="skill-tag skill-tag--matched">${escapeHtml(s)}</span>`).join("")}
+                </div>`
+              : ""}
+            ${missingCerts?.length
+              ? `<div class="skills-group skills-group--missing">
+                  <span class="skills-label">✗ Certs:</span>
+                  ${missingCerts.map((s) => `<span class="skill-tag skill-tag--missing">${escapeHtml(s)}</span>`).join("")}
                 </div>`
               : ""}
           </div>

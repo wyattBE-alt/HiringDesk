@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>My Dashboard — HiringDesk</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./styles.css" />
+  <style>
+    .dash-shell {
+      position: relative; z-index: 2;
+      min-height: 100vh; display: flex; flex-direction: column;
+    }
+    .dash-nav {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 32px; border-bottom: 1px solid rgba(255,255,255,0.06);
+      background: rgba(0,0,5,0.55); backdrop-filter: blur(24px);
+      position: sticky; top: 0; z-index: 10;
+    }
+    .dash-nav-left { display: flex; align-items: center; gap: 16px; }
+    .dash-logo { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 1.1rem; letter-spacing: -0.04em; color: #eef0f8; text-decoration: none; }
+    .dash-back { font-size: 0.8rem; color: #8a96b8; text-decoration: none; display: flex; align-items: center; gap: 5px; }
+    .dash-back:hover { color: #eef0f8; }
+    .dash-nav-right { display: flex; align-items: center; gap: 12px; }
+    .dash-user-email { font-size: 0.8rem; color: #8a96b8; }
+    .dash-signout { font-size: 0.78rem; color: #48506a; border: none; background: none; cursor: pointer; padding: 0; }
+    .dash-signout:hover { color: #ef4444; }
+
+    .dash-main { flex: 1; max-width: 960px; width: 100%; margin: 0 auto; padding: 40px 24px 60px; display: flex; flex-direction: column; gap: 32px; }
+
+    /* Auth gate */
+    .dash-gate {
+      flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 16px; text-align: center; padding: 80px 24px;
+    }
+    .dash-gate h2 { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 1.8rem; letter-spacing: -0.03em; color: #eef0f8; }
+    .dash-gate p { font-size: 0.9rem; color: #8a96b8; max-width: 36ch; line-height: 1.6; }
+    .dash-gate-btn {
+      padding: 12px 28px; border-radius: 10px; border: none;
+      background: #2563eb; color: #fff; font-size: 0.92rem; font-weight: 700; cursor: pointer;
+    }
+
+    /* Section heading */
+    .dash-section-head {
+      display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;
+    }
+    .dash-section-title {
+      font-family: 'Syne', sans-serif; font-weight: 800; font-size: 1.15rem;
+      letter-spacing: -0.03em; color: #eef0f8;
+    }
+    .dash-section-sub { font-size: 0.8rem; color: #48506a; margin-top: 2px; }
+
+    /* Score timeline */
+    .score-timeline {
+      background: rgba(6,8,18,0.7); border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 16px; padding: 24px;
+    }
+    .score-timeline-empty { font-size: 0.86rem; color: #48506a; padding: 12px 0; }
+    .score-chart { display: flex; align-items: flex-end; gap: 10px; height: 110px; margin-top: 16px; }
+    .score-bar-wrap { display: flex; flex-direction: column; align-items: center; gap: 6px; flex: 1; min-width: 0; }
+    .score-bar {
+      width: 100%; border-radius: 6px 6px 0 0;
+      background: linear-gradient(to top, #1d4ed8, #60a5fa);
+      transition: height 500ms cubic-bezier(0.23,1,0.32,1);
+      position: relative; min-height: 4px;
+    }
+    .score-bar.baseline { background: linear-gradient(to top, #374151, #6b7280); }
+    .score-bar-value { font-size: 0.75rem; font-weight: 700; color: #eef0f8; }
+    .score-bar-label { font-size: 0.63rem; color: #48506a; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 60px; }
+    .score-delta {
+      display: inline-flex; align-items: center; gap: 5px;
+      font-size: 0.82rem; font-weight: 700;
+      padding: 4px 10px; border-radius: 999px;
+    }
+    .score-delta.up { background: rgba(34,197,94,0.12); color: #22c55e; border: 1px solid rgba(34,197,94,0.2); }
+    .score-delta.down { background: rgba(239,68,68,0.12); color: #ef4444; border: 1px solid rgba(239,68,68,0.2); }
+    .score-delta.same { background: rgba(255,255,255,0.06); color: #8a96b8; border: 1px solid rgba(255,255,255,0.1); }
+
+    .skills-progression { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+    .skill-chip {
+      font-size: 0.75rem; font-weight: 600; padding: 4px 11px; border-radius: 999px;
+      background: rgba(37,99,235,0.12); color: #60a5fa; border: 1px solid rgba(37,99,235,0.2);
+    }
+
+    /* Applications tracker */
+    .apps-grid { display: flex; flex-direction: column; gap: 10px; }
+    .app-card {
+      background: rgba(6,8,18,0.7); border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 12px; padding: 16px 18px;
+      display: grid; grid-template-columns: 1fr auto; align-items: start; gap: 12px;
+    }
+    .app-card:hover { border-color: rgba(255,255,255,0.13); }
+    .app-job-title { font-size: 0.95rem; font-weight: 700; color: #eef0f8; margin-bottom: 2px; }
+    .app-company { font-size: 0.82rem; color: #8a96b8; }
+    .app-meta { display: flex; align-items: center; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+    .app-score-pill {
+      font-size: 0.72rem; font-weight: 700; padding: 2px 8px; border-radius: 999px;
+      background: rgba(37,99,235,0.12); color: #60a5fa; border: 1px solid rgba(37,99,235,0.2);
+    }
+    .app-date { font-size: 0.72rem; color: #48506a; }
+    .app-skills { font-size: 0.72rem; color: #6b7280; }
+
+    .app-right { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+    .app-status-select {
+      font-size: 0.75rem; font-weight: 600; padding: 5px 9px; border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.05);
+      color: #eef0f8; cursor: pointer; outline: none;
+    }
+    .app-status-select:focus { border-color: rgba(37,99,235,0.5); }
+    .app-status-select.status-interview { border-color: rgba(245,158,11,0.4); color: #f59e0b; background: rgba(245,158,11,0.08); }
+    .app-status-select.status-accepted { border-color: rgba(34,197,94,0.4); color: #22c55e; background: rgba(34,197,94,0.08); }
+    .app-status-select.status-rejected { border-color: rgba(239,68,68,0.3); color: #ef4444; background: rgba(239,68,68,0.07); }
+    .app-delete-btn {
+      font-size: 0.7rem; color: #48506a; border: none; background: none; cursor: pointer; padding: 0;
+    }
+    .app-delete-btn:hover { color: #ef4444; }
+
+    .app-apply-link { font-size: 0.72rem; color: #60a5fa; text-decoration: none; }
+    .app-apply-link:hover { text-decoration: underline; }
+
+    /* Stats row */
+    .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+    .stat-card {
+      background: rgba(6,8,18,0.7); border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 12px; padding: 18px 20px;
+    }
+    .stat-card-num { font-family: 'Syne', sans-serif; font-size: 2rem; font-weight: 800; letter-spacing: -0.03em; color: #60a5fa; line-height: 1; }
+    .stat-card-label { font-size: 0.76rem; color: #8a96b8; margin-top: 4px; }
+    .stat-card.green .stat-card-num { color: #22c55e; }
+    .stat-card.amber .stat-card-num { color: #f59e0b; }
+    .stat-card.rose .stat-card-num { color: #ef4444; }
+
+    .empty-state { font-size: 0.86rem; color: #48506a; padding: 20px 0; text-align: center; }
+    .go-to-tool-link { font-size: 0.82rem; color: #60a5fa; text-decoration: none; }
+    .go-to-tool-link:hover { text-decoration: underline; }
+
+    @media (max-width: 640px) {
+      .dash-nav { padding: 14px 16px; }
+      .dash-main { padding: 24px 16px 48px; }
+      .stats-row { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+  <div class="bg-wrap" aria-hidden="true">
+    <div class="orb orb-1"></div><div class="orb orb-2"></div>
+    <div class="orb orb-3"></div><div class="orb orb-4"></div><div class="orb orb-5"></div>
+  </div>
+
+  <div class="dash-shell">
+    <nav class="dash-nav">
+      <div class="dash-nav-left">
+        <a href="/" class="dash-logo">HiringDesk</a>
+        <a href="/index.html" class="dash-back">← Resume Matcher</a>
+      </div>
+      <div class="dash-nav-right" id="dashNavRight"></div>
+    </nav>
+
+    <!-- Auth gate (shown when not logged in) -->
+    <div class="dash-gate" id="dashGate" style="display:none">
+      <h2>Your personal dashboard</h2>
+      <p>Sign in or create a free account to track your resume score over time and log every job you apply for.</p>
+      <button class="dash-gate-btn" id="dashGateBtn">Sign In / Create Account</button>
+    </div>
+
+    <!-- Dashboard content (shown when logged in) -->
+    <main class="dash-main" id="dashMain" style="display:none">
+
+      <!-- Stats summary row -->
+      <div class="stats-row" id="statsRow">
+        <div class="stat-card"><div class="stat-card-num" id="statApplied">–</div><div class="stat-card-label">Applications Sent</div></div>
+        <div class="stat-card amber"><div class="stat-card-num" id="statInterview">–</div><div class="stat-card-label">Interviews</div></div>
+        <div class="stat-card green"><div class="stat-card-num" id="statAccepted">–</div><div class="stat-card-label">Accepted</div></div>
+        <div class="stat-card rose"><div class="stat-card-num" id="statRejected">–</div><div class="stat-card-label">Rejected</div></div>
+      </div>
+
+      <!-- Resume score timeline -->
+      <div class="score-timeline">
+        <div class="dash-section-head">
+          <div>
+            <h2 class="dash-section-title">Resume Score History</h2>
+            <p class="dash-section-sub">Saved every time you analyze your resume while signed in.</p>
+          </div>
+          <span id="scoreDelta" class="score-delta same" style="display:none"></span>
+        </div>
+        <div id="scoreChartWrap">
+          <p class="score-timeline-empty">No snapshots yet. <a href="/index.html" class="go-to-tool-link">Analyze your resume</a> while signed in to start tracking.</p>
+        </div>
+        <div class="skills-progression" id="skillsProgression"></div>
+      </div>
+
+      <!-- Applications tracker -->
+      <div>
+        <div class="dash-section-head">
+          <div>
+            <h2 class="dash-section-title">Job Applications</h2>
+            <p class="dash-section-sub">Jobs you've logged from HiringDesk analyses.</p>
+          </div>
+          <a href="/index.html" class="go-to-tool-link">+ Analyze a new role</a>
+        </div>
+        <div class="apps-grid" id="appsGrid">
+          <p class="empty-state">No applications saved yet. After running a resume analysis, click "Log Application" on any job card.</p>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <script type="module">
+    import { initAuth, logout, openModal, getToken } from "/auth.js";
+
+    const navRight = document.getElementById("dashNavRight");
+
+    async function boot() {
+      const user = await initAuth();
+
+      if (!user) {
+        document.getElementById("dashGate").style.display = "flex";
+        document.getElementById("dashGateBtn").addEventListener("click", () => openModal("login"));
+        window.addEventListener("hd:authed", () => window.location.reload());
+        return;
+      }
+
+      // Nav
+      const initial = user.email[0].toUpperCase();
+      navRight.innerHTML = `
+        <span class="dash-user-email">${user.email}</span>
+        <button class="dash-signout" id="navSignout">Sign out</button>
+      `;
+      navRight.querySelector("#navSignout").addEventListener("click", logout);
+
+      document.getElementById("dashMain").style.display = "flex";
+      await loadDashboard(user);
+    }
+
+    async function loadDashboard(user) {
+      const token = getToken();
+      const headers = { "Authorization": `Bearer ${token}` };
+
+      const [snapRes, appRes] = await Promise.all([
+        fetch("/api/user/snapshots", { headers }),
+        fetch("/api/user/applications", { headers })
+      ]);
+
+      const { snapshots = [] } = await snapRes.json();
+      const { applications = [] } = await appRes.json();
+
+      renderStats(applications);
+      renderScoreHistory(snapshots);
+      renderApplications(applications);
+    }
+
+    function renderStats(apps) {
+      document.getElementById("statApplied").textContent = apps.length;
+      document.getElementById("statInterview").textContent = apps.filter(a => a.status === "interview").length;
+      document.getElementById("statAccepted").textContent = apps.filter(a => a.status === "accepted").length;
+      document.getElementById("statRejected").textContent = apps.filter(a => a.status === "rejected").length;
+    }
+
+    function renderScoreHistory(snapshots) {
+      const wrap = document.getElementById("scoreChartWrap");
+      if (!snapshots.length) return;
+
+      const first = snapshots[0].avgScore ?? 0;
+      const last = snapshots[snapshots.length - 1].avgScore ?? 0;
+      const delta = last - first;
+
+      // Delta badge
+      const deltaEl = document.getElementById("scoreDelta");
+      deltaEl.style.display = "inline-flex";
+      if (delta > 0) { deltaEl.className = "score-delta up"; deltaEl.textContent = `▲ +${delta} from baseline`; }
+      else if (delta < 0) { deltaEl.className = "score-delta down"; deltaEl.textContent = `▼ ${delta} from baseline`; }
+      else { deltaEl.className = "score-delta same"; deltaEl.textContent = "No change from baseline"; }
+
+      // Bar chart
+      const maxScore = Math.max(...snapshots.map(s => s.avgScore || 0), 1);
+      wrap.innerHTML = `<div class="score-chart" id="scoreChart"></div>`;
+      const chart = wrap.querySelector("#scoreChart");
+      snapshots.forEach((s, i) => {
+        const heightPct = ((s.avgScore || 0) / maxScore) * 100;
+        const isBaseline = s.label === "baseline";
+        const label = isBaseline ? "Baseline" : `Update ${i}`;
+        const dateStr = new Date(s.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+        const bar = document.createElement("div");
+        bar.className = "score-bar-wrap";
+        bar.innerHTML = `
+          <span class="score-bar-value">${s.avgScore ?? "–"}</span>
+          <div class="score-bar${isBaseline ? " baseline" : ""}" style="height:${Math.max(heightPct, 4)}%"></div>
+          <span class="score-bar-label" title="${label} · ${dateStr}">${dateStr}</span>
+        `;
+        chart.appendChild(bar);
+      });
+
+      // Latest skills
+      const latest = snapshots[snapshots.length - 1];
+      const skillsEl = document.getElementById("skillsProgression");
+      if (latest.topSkills?.length) {
+        skillsEl.innerHTML = latest.topSkills.map(s => `<span class="skill-chip">${escHtml(s)}</span>`).join("");
+      }
+    }
+
+    function renderApplications(apps) {
+      const grid = document.getElementById("appsGrid");
+      if (!apps.length) return;
+
+      grid.innerHTML = apps.map(a => {
+        const statusClass = a.status === "interview" ? "status-interview"
+          : a.status === "accepted" ? "status-accepted"
+          : a.status === "rejected" ? "status-rejected" : "";
+        const dateStr = new Date(a.appliedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+        const skills = a.matchedSkills?.slice(0, 4).join(", ") || "";
+        return `
+          <div class="app-card" data-id="${a.id}">
+            <div>
+              <div class="app-job-title">${escHtml(a.jobTitle)}</div>
+              <div class="app-company">${escHtml(a.company || "—")}</div>
+              <div class="app-meta">
+                ${a.score != null ? `<span class="app-score-pill">Score ${a.score}</span>` : ""}
+                <span class="app-date">${dateStr}</span>
+                ${skills ? `<span class="app-skills">✓ ${escHtml(skills)}</span>` : ""}
+                ${a.applyUrl ? `<a href="${escHtml(a.applyUrl)}" class="app-apply-link" target="_blank" rel="noopener">Apply link ↗</a>` : ""}
+              </div>
+            </div>
+            <div class="app-right">
+              <select class="app-status-select ${statusClass}" data-appid="${a.id}">
+                <option value="applied"${a.status==="applied"?" selected":""}>Applied</option>
+                <option value="interview"${a.status==="interview"?" selected":""}>Interview</option>
+                <option value="accepted"${a.status==="accepted"?" selected":""}>Accepted</option>
+                <option value="rejected"${a.status==="rejected"?" selected":""}>Rejected</option>
+              </select>
+              <button class="app-delete-btn" data-appid="${a.id}">Remove</button>
+            </div>
+          </div>
+        `;
+      }).join("");
+
+      // Status change
+      grid.addEventListener("change", async e => {
+        const sel = e.target.closest(".app-status-select");
+        if (!sel) return;
+        const id = sel.dataset.appid;
+        const status = sel.value;
+        sel.className = "app-status-select";
+        if (status === "interview") sel.classList.add("status-interview");
+        if (status === "accepted") sel.classList.add("status-accepted");
+        if (status === "rejected") sel.classList.add("status-rejected");
+        await fetch(`/api/user/applications/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${getToken()}` },
+          body: JSON.stringify({ status })
+        });
+        // Refresh stats
+        const { applications = [] } = await (await fetch("/api/user/applications", { headers: { "Authorization": `Bearer ${getToken()}` } })).json();
+        renderStats(applications);
+      });
+
+      // Delete
+      grid.addEventListener("click", async e => {
+        const btn = e.target.closest(".app-delete-btn");
+        if (!btn) return;
+        const id = btn.dataset.appid;
+        if (!confirm("Remove this application from your history?")) return;
+        await fetch(`/api/user/applications/${id}`, {
+          method: "DELETE",
+          headers: { "Authorization": `Bearer ${getToken()}` }
+        });
+        btn.closest(".app-card").remove();
+        const remaining = document.querySelectorAll(".app-card").length;
+        if (remaining === 0) document.getElementById("appsGrid").innerHTML = `<p class="empty-state">No applications saved yet.</p>`;
+      });
+    }
+
+    function escHtml(s) {
+      return String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+    }
+
+    boot();
+  </script>
+</body>
+</html>

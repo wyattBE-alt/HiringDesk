@@ -808,10 +808,9 @@
     <!-- ── Nav ─────────────────────────────────────────────── -->
     <nav class="nav">
       <span class="nav-logo">HiringDesk</span>
-      <div class="nav-links">
+      <div class="nav-links" id="navLinks">
         <a href="/index.html" class="nav-link">Job Seekers</a>
         <a href="/recruiter.html" class="nav-link">Recruiters</a>
-        <a href="/index.html" class="nav-link nav-link-primary">Get Started</a>
       </div>
     </nav>
 
@@ -1013,7 +1012,9 @@
   </div>
 
   <script src="/home.js"></script>
-  <script>
+  <script type="module">
+    import { initAuth } from "/auth.js";
+    initAuth();
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js').catch(() => {});
     }

@@ -6,7 +6,13 @@ import nodemailer from "nodemailer";
 import { fileURLToPath, pathToFileURL } from "url";
 import path from "path";
 import { createRequire } from "module";
-import { saveJobAndCandidates, getPastCandidates, getCandidateCount } from "./db.js";
+import {
+  saveJobAndCandidates, getPastCandidates, getCandidateCount,
+  updateCandidateStatus, recordHiringSignal, getHiringSignals,
+  createUser, loginUser, getUserFromToken, deleteSession,
+  saveApplication, getApplications, updateApplicationStatus, deleteApplication,
+  saveResumeSnapshot, getResumeSnapshots, getTalentPool, saveTalentPoolCandidate
+} from "./db.js";
 import rateLimit from "express-rate-limit";
 
 const _require = createRequire(import.meta.url);
@@ -44,6 +50,25 @@ app.use("/api/recruiter/rank",       aiLimiter);
 app.use("/api/recruiter/notify",     lightLimiter);
 app.use("/api/recruiter/past-match", lightLimiter);
 app.use("/api/integrations",         lightLimiter);
+app.use("/api/auth",                 lightLimiter);
+app.use("/api/user",                 lightLimiter);
+app.use("/api/recruiter/talent-pool", lightLimiter);
+
+// ── Auth middleware ───────────────────────────────────────────────────────────
+function requireAuth(req, res, next) {
+  const token = (req.headers.authorization || "").replace("Bearer ", "").trim();
+  const user = getUserFromToken(token);
+  if (!user) return res.status(401).json({ error: "Not authenticated." });
+  req.user = user;
+  next();
+}
+
+function requireRole(role) {
+  return (req, res, next) => {
+    if (req.user?.role !== role) return res.status(403).json({ error: "Access denied." });
+    next();
+  };
+}
 
 // Home page — must be before express.static so it intercepts "/"
 // (express.static defaults "/" to index.html; we want home.html)
@@ -292,6 +317,24 @@ app.post("/api/analyze", upload.single("resumeFile"), async (req, res) => {
     const averageScore = assessments.length
       ? Math.round(assessments.reduce((sum, a) => sum + a.score, 0) / assessments.length)
       : 0;
+
+    // Opt-in: save to talent pool so recruiters can find this applicant
+    if (req.body.allowRecruiterSearch === "true" && analysis.resumeSummary) {
+      try {
+        saveTalentPoolCandidate({
+          name: analysis.resumeSummary.name,
+          currentTitle: analysis.resumeSummary.currentTitle,
+          location: "",
+          contactInfo: "",
+          yearsExperience: analysis.resumeSummary.yearsExperience,
+          topSkills: analysis.resumeSummary.topSkills || [],
+          resumeText,
+          avgScore: averageScore
+        });
+      } catch (err) {
+        console.error("Talent pool opt-in save (non-fatal):", err.message);
+      }
+    }
 
     res.json({
       resumeText,
@@ -585,8 +628,9 @@ app.post("/api/recruiter/rank", upload.array("resumeFiles", 100), async (req, re
       : 0;
 
     // Save job + all ranked candidates to the database
+    let candidateIds = [];
     try {
-      saveJobAndCandidates(job, ranked, capped);
+      ({ candidateIds } = saveJobAndCandidates(job, ranked, capped));
     } catch (err) {
       console.error("DB save error (non-fatal):", err.message);
     }
@@ -594,6 +638,7 @@ app.post("/api/recruiter/rank", upload.array("resumeFiles", 100), async (req, re
     res.json({
       job: { ...job, totalAnalyzed: capped.length },
       candidates: ranked,
+      candidateIds,
       stats: {
         totalAnalyzed: capped.length,
         shown: ranked.length,
@@ -623,14 +668,22 @@ app.post("/api/recruiter/past-match", (req, res) => {
       .toLowerCase()
       .split(/[,\s]+/)
       .filter(Boolean);
+    const requiredCerts = (job.requiredCertifications || "")
+      .toLowerCase()
+      .split(/[,\n]+/)
+      .map(s => s.trim())
+      .filter(Boolean);
     const minExp = parseInt(job.minYearsExp) || 0;
     const jobLocation = (job.location || "").toLowerCase();
+
+    const hiringSignals = getHiringSignals();
 
     const scored = allPast.map((c) => {
       const resumeLower = (c.resumeText || "").toLowerCase();
       const candidateSkills = c.skills.map((s) => s.toLowerCase());
+      const candidateCerts = c.certifications.map((s) => s.toLowerCase());
 
-      // Skill match — check stored skills AND resume text
+      // Skill match — check stored skills AND resume text (up to 50 pts)
       let matchedSkills = [];
       let missingSkills = [];
       for (const skill of requiredSkills) {
@@ -639,10 +692,22 @@ app.post("/api/recruiter/past-match", (req, res) => {
         if (found) matchedSkills.push(skill);
         else missingSkills.push(skill);
       }
-
       const skillScore = requiredSkills.length > 0
-        ? (matchedSkills.length / requiredSkills.length) * 65
-        : 50;
+        ? (matchedSkills.length / requiredSkills.length) * 50
+        : 40;
+
+      // Cert match — check stored certs AND resume text (up to 15 pts)
+      let matchedCerts = [];
+      let missingCerts = [];
+      for (const cert of requiredCerts) {
+        const found = candidateCerts.some((s) => s.includes(cert) || cert.includes(s))
+          || resumeLower.includes(cert);
+        if (found) matchedCerts.push(cert);
+        else missingCerts.push(cert);
+      }
+      const certScore = requiredCerts.length > 0
+        ? (matchedCerts.length / requiredCerts.length) * 15
+        : 10;
 
       // Experience score (up to 20)
       let expScore = 0;
@@ -668,9 +733,17 @@ app.post("/api/recruiter/past-match", (req, res) => {
         }
       }
 
-      const score = Math.min(Math.round(skillScore + expScore + locScore), 100);
+      // Hiring signal bonus — boost previously-hired candidates whose skills overlap (up to 5 pts)
+      let signalBonus = 0;
+      if (hiringSignals.skills.size > 0 || hiringSignals.certs.size > 0) {
+        const skillOverlap = candidateSkills.filter(s => hiringSignals.skills.has(s)).length;
+        const certOverlap = candidateCerts.filter(s => hiringSignals.certs.has(s)).length;
+        if (skillOverlap + certOverlap > 0) signalBonus = 5;
+      }
 
-      return { ...c, score, matchedSkills, missingSkills };
+      const score = Math.min(Math.round(skillScore + certScore + expScore + locScore + signalBonus), 100);
+
+      return { ...c, score, matchedSkills, missingSkills, matchedCerts, missingCerts };
     });
 
     // Only surface candidates with a meaningful match
@@ -724,6 +797,132 @@ app.post("/api/recruiter/notify", async (req, res) => {
   } catch (err) {
     console.error("Notify error:", err);
     res.status(500).json({ error: err.message || "Notification failed." });
+  }
+});
+
+// ─────────────────────────────────────────────
+//  CANDIDATE STATUS + FEEDBACK
+// ─────────────────────────────────────────────
+
+app.patch("/api/recruiter/candidate/status", express.json(), (req, res) => {
+  try {
+    const { candidateId, status } = req.body;
+    const allowed = ["new", "interview_scheduled", "hired", "rejected"];
+    if (!candidateId || !allowed.includes(status)) {
+      return res.status(400).json({ error: "candidateId and valid status required." });
+    }
+    updateCandidateStatus(candidateId, status);
+    if (status === "hired") {
+      const { skills = [], certs = [] } = req.body;
+      if (skills.length || certs.length) recordHiringSignal(skills, certs);
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─────────────────────────────────────────────
+//  AUTH
+// ─────────────────────────────────────────────
+
+app.post("/api/auth/register", express.json(), (req, res) => {
+  try {
+    const { email, password, role } = req.body;
+    if (!email || !password) return res.status(400).json({ error: "Email and password required." });
+    if (password.length < 8) return res.status(400).json({ error: "Password must be at least 8 characters." });
+    if (!["applicant", "recruiter"].includes(role)) return res.status(400).json({ error: "Role must be applicant or recruiter." });
+    const user = createUser(email, password, role);
+    const { token } = loginUser(email, password);
+    res.json({ token, user });
+  } catch (err) {
+    if (err.message === "EMAIL_TAKEN") return res.status(409).json({ error: "An account with that email already exists." });
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/auth/login", express.json(), (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) return res.status(400).json({ error: "Email and password required." });
+    const result = loginUser(email, password);
+    res.json(result);
+  } catch (err) {
+    if (err.message === "INVALID_CREDENTIALS") return res.status(401).json({ error: "Incorrect email or password." });
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/auth/logout", requireAuth, (req, res) => {
+  const token = (req.headers.authorization || "").replace("Bearer ", "").trim();
+  deleteSession(token);
+  res.json({ ok: true });
+});
+
+app.get("/api/auth/me", requireAuth, (req, res) => {
+  res.json({ user: req.user });
+});
+
+// ─────────────────────────────────────────────
+//  USER — JOB APPLICATIONS
+// ─────────────────────────────────────────────
+
+app.get("/api/user/applications", requireAuth, (req, res) => {
+  res.json({ applications: getApplications(req.user.id) });
+});
+
+app.post("/api/user/applications", requireAuth, express.json(), (req, res) => {
+  try {
+    const id = saveApplication(req.user.id, req.body);
+    res.json({ id });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.patch("/api/user/applications/:id", requireAuth, express.json(), (req, res) => {
+  const { status } = req.body;
+  const allowed = ["applied", "interview", "accepted", "rejected"];
+  if (!allowed.includes(status)) return res.status(400).json({ error: "Invalid status." });
+  updateApplicationStatus(parseInt(req.params.id), req.user.id, status);
+  res.json({ ok: true });
+});
+
+app.delete("/api/user/applications/:id", requireAuth, (req, res) => {
+  deleteApplication(parseInt(req.params.id), req.user.id);
+  res.json({ ok: true });
+});
+
+// ─────────────────────────────────────────────
+//  USER — RESUME SNAPSHOTS
+// ─────────────────────────────────────────────
+
+app.get("/api/user/snapshots", requireAuth, (req, res) => {
+  res.json({ snapshots: getResumeSnapshots(req.user.id) });
+});
+
+app.post("/api/user/snapshots", requireAuth, express.json(), (req, res) => {
+  try {
+    saveResumeSnapshot(req.user.id, req.body);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─────────────────────────────────────────────
+//  RECRUITER — TALENT POOL
+// ─────────────────────────────────────────────
+
+app.get("/api/recruiter/talent-pool", requireAuth, requireRole("recruiter"), (req, res) => {
+  try {
+    const skills = (req.query.skills || "").split(",").map(s => s.trim()).filter(Boolean);
+    const minScore = parseInt(req.query.minScore) || 50;
+    const candidates = getTalentPool({ skills, minScore, limit: 100 });
+    const totalInDb = getCandidateCount();
+    res.json({ candidates, totalInDb });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 

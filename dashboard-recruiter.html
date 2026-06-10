@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Recruiter Dashboard — HiringDesk</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./styles.css" />
+  <style>
+    .dash-shell { position: relative; z-index: 2; min-height: 100vh; display: flex; flex-direction: column; }
+    .dash-nav {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 32px; border-bottom: 1px solid rgba(255,255,255,0.06);
+      background: rgba(0,0,5,0.55); backdrop-filter: blur(24px);
+      position: sticky; top: 0; z-index: 10;
+    }
+    .dash-nav-left { display: flex; align-items: center; gap: 16px; }
+    .dash-logo { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 1.1rem; letter-spacing: -0.04em; color: #eef0f8; text-decoration: none; }
+    .dash-back { font-size: 0.8rem; color: #8a96b8; text-decoration: none; }
+    .dash-back:hover { color: #eef0f8; }
+    .dash-nav-right { display: flex; align-items: center; gap: 12px; }
+    .dash-user-email { font-size: 0.8rem; color: #8a96b8; }
+    .dash-signout { font-size: 0.78rem; color: #48506a; border: none; background: none; cursor: pointer; }
+    .dash-signout:hover { color: #ef4444; }
+
+    .dash-main { flex: 1; max-width: 1040px; width: 100%; margin: 0 auto; padding: 40px 24px 60px; display: flex; flex-direction: column; gap: 32px; }
+
+    .dash-gate {
+      flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 16px; text-align: center; padding: 80px 24px;
+    }
+    .dash-gate h2 { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 1.8rem; letter-spacing: -0.03em; color: #eef0f8; }
+    .dash-gate p { font-size: 0.9rem; color: #8a96b8; max-width: 38ch; line-height: 1.6; }
+    .dash-gate-btn { padding: 12px 28px; border-radius: 10px; border: none; background: #7c3aed; color: #fff; font-size: 0.92rem; font-weight: 700; cursor: pointer; }
+
+    .dash-section-head { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 16px; gap: 16px; flex-wrap: wrap; }
+    .dash-section-title { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 1.15rem; letter-spacing: -0.03em; color: #eef0f8; }
+    .dash-section-sub { font-size: 0.8rem; color: #48506a; margin-top: 2px; }
+
+    /* Filter bar */
+    .filter-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .filter-bar input {
+      flex: 1; min-width: 200px; padding: 8px 13px;
+      background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 9px; color: #eef0f8; font-size: 0.85rem; outline: none;
+    }
+    .filter-bar input:focus { border-color: rgba(139,92,246,0.5); box-shadow: 0 0 0 3px rgba(139,92,246,0.12); }
+    .filter-bar input::placeholder { color: #48506a; }
+    .filter-search-btn {
+      padding: 8px 18px; border-radius: 9px; border: none;
+      background: #7c3aed; color: #fff; font-size: 0.84rem; font-weight: 600; cursor: pointer;
+      transition: background 150ms;
+    }
+    .filter-search-btn:hover { background: #6d28d9; }
+    .pool-meta { font-size: 0.8rem; color: #48506a; }
+
+    /* Candidate grid */
+    .talent-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+    .talent-card {
+      background: rgba(6,8,18,0.72); border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 14px; padding: 18px 18px 14px;
+      display: flex; flex-direction: column; gap: 10px;
+      transition: border-color 160ms;
+    }
+    .talent-card:hover { border-color: rgba(139,92,246,0.25); }
+    .talent-card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+    .talent-name { font-size: 0.95rem; font-weight: 700; color: #eef0f8; }
+    .talent-title { font-size: 0.8rem; color: #8a96b8; margin-top: 1px; }
+    .talent-score {
+      font-family: 'Syne', sans-serif; font-size: 1.35rem; font-weight: 800;
+      letter-spacing: -0.03em; line-height: 1; flex-shrink: 0;
+    }
+    .talent-score.high { color: #22c55e; }
+    .talent-score.mid { color: #f59e0b; }
+    .talent-score.low { color: #ef4444; }
+    .talent-meta { display: flex; flex-wrap: wrap; gap: 6px; }
+    .talent-meta-pill {
+      font-size: 0.72rem; color: #8a96b8; padding: 2px 8px; border-radius: 999px;
+      background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.07);
+    }
+    .talent-skills { display: flex; flex-wrap: wrap; gap: 6px; }
+    .talent-skill-tag {
+      font-size: 0.7rem; padding: 2px 8px; border-radius: 999px;
+      background: rgba(139,92,246,0.1); color: #a78bfa; border: 1px solid rgba(139,92,246,0.18);
+    }
+    .talent-contact { font-size: 0.75rem; color: #60a5fa; word-break: break-all; }
+    .talent-last-role { font-size: 0.73rem; color: #48506a; }
+    .talent-status-badge {
+      font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;
+      padding: 2px 7px; border-radius: 999px;
+    }
+    .talent-status-badge.hired { background: rgba(34,197,94,0.12); color: #22c55e; border: 1px solid rgba(34,197,94,0.2); }
+    .talent-status-badge.rejected { background: rgba(239,68,68,0.08); color: #ef4444; border: 1px solid rgba(239,68,68,0.15); }
+    .talent-status-badge.interview { background: rgba(245,158,11,0.1); color: #f59e0b; border: 1px solid rgba(245,158,11,0.2); }
+
+    .empty-pool {
+      grid-column: 1/-1; font-size: 0.88rem; color: #48506a; text-align: center; padding: 40px 0;
+    }
+    .pool-notice {
+      font-size: 0.82rem; color: #48506a; line-height: 1.6;
+      padding: 16px 18px; border-radius: 10px;
+      background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07);
+    }
+    .pool-notice a { color: #a78bfa; text-decoration: none; }
+    .pool-notice a:hover { text-decoration: underline; }
+
+    @media (max-width: 640px) {
+      .dash-nav { padding: 14px 16px; }
+      .dash-main { padding: 24px 16px 48px; }
+      .talent-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="bg-wrap" aria-hidden="true">
+    <div class="orb orb-1"></div><div class="orb orb-2"></div>
+    <div class="orb orb-3"></div><div class="orb orb-4"></div><div class="orb orb-5"></div>
+  </div>
+
+  <div class="dash-shell">
+    <nav class="dash-nav">
+      <div class="dash-nav-left">
+        <a href="/" class="dash-logo">HiringDesk</a>
+        <a href="/recruiter.html" class="dash-back">← Candidate Ranker</a>
+      </div>
+      <div class="dash-nav-right" id="dashNavRight"></div>
+    </nav>
+
+    <!-- Auth gate -->
+    <div class="dash-gate" id="dashGate" style="display:none">
+      <h2>Recruiter Dashboard</h2>
+      <p>Sign in as a recruiter to access your personal talent pool built from every candidate ever ranked on HiringDesk.</p>
+      <button class="dash-gate-btn" id="dashGateBtn">Sign In / Create Account</button>
+    </div>
+
+    <!-- Wrong role gate -->
+    <div class="dash-gate" id="dashRoleGate" style="display:none">
+      <h2>Recruiter accounts only</h2>
+      <p>This dashboard is for recruiter accounts. Switch to the <a href="/dashboard-applicant.html" style="color:#60a5fa">applicant dashboard</a> or create a recruiter account.</p>
+    </div>
+
+    <main class="dash-main" id="dashMain" style="display:none">
+
+      <!-- Talent pool section -->
+      <div>
+        <div class="dash-section-head">
+          <div>
+            <h2 class="dash-section-title">Talent Pool</h2>
+            <p class="dash-section-sub" id="poolSubtitle">All high-scoring candidates from HiringDesk's accumulated resume database.</p>
+          </div>
+          <span class="pool-meta" id="poolMeta"></span>
+        </div>
+
+        <p class="pool-notice" style="margin-bottom:16px">
+          This pool is built from every resume ranked through HiringDesk's <a href="/recruiter.html">candidate ranker</a> — candidates who have applied to similar roles over time. Filter by skill keywords below to surface the best fits for your current opening. External job board candidate data is not available via public API; this pool grows as more recruiters use the platform.
+        </p>
+
+        <div class="filter-bar" style="margin-bottom:20px">
+          <input type="text" id="skillFilter" placeholder="Filter by skills — e.g. Python, Kubernetes, React" />
+          <button class="filter-search-btn" id="filterBtn">Search Pool</button>
+        </div>
+
+        <div class="talent-grid" id="talentGrid">
+          <p class="empty-pool">Loading talent pool…</p>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <script type="module">
+    import { initAuth, logout, openModal, getToken } from "/auth.js";
+
+    async function boot() {
+      const user = await initAuth();
+
+      const navRight = document.getElementById("dashNavRight");
+
+      if (!user) {
+        document.getElementById("dashGate").style.display = "flex";
+        document.getElementById("dashGateBtn").addEventListener("click", () => openModal("register"));
+        window.addEventListener("hd:authed", () => window.location.reload());
+        return;
+      }
+
+      if (user.role !== "recruiter") {
+        document.getElementById("dashRoleGate").style.display = "flex";
+        return;
+      }
+
+      navRight.innerHTML = `
+        <span class="dash-user-email">${user.email}</span>
+        <button class="dash-signout" id="navSignout">Sign out</button>
+      `;
+      navRight.querySelector("#navSignout").addEventListener("click", logout);
+
+      document.getElementById("dashMain").style.display = "flex";
+      await loadPool("");
+    }
+
+    async function loadPool(skillQuery) {
+      const grid = document.getElementById("talentGrid");
+      grid.innerHTML = `<p class="empty-pool">Searching talent pool…</p>`;
+
+      const params = new URLSearchParams({ minScore: 50 });
+      if (skillQuery.trim()) params.set("skills", skillQuery.trim());
+
+      const res = await fetch(`/api/recruiter/talent-pool?${params}`, {
+        headers: { "Authorization": `Bearer ${getToken()}` }
+      });
+
+      if (!res.ok) {
+        grid.innerHTML = `<p class="empty-pool">Failed to load talent pool.</p>`;
+        return;
+      }
+
+      const { candidates, totalInDb } = await res.json();
+
+      document.getElementById("poolSubtitle").textContent =
+        skillQuery.trim()
+          ? `Candidates matching "${skillQuery.trim()}" from the HiringDesk database.`
+          : "All high-scoring candidates from HiringDesk's accumulated resume database.";
+
+      document.getElementById("poolMeta").textContent =
+        `${totalInDb.toLocaleString()} total candidates in database`;
+
+      if (!candidates.length) {
+        grid.innerHTML = `<p class="empty-pool">No candidates found${skillQuery ? ` matching "${escHtml(skillQuery)}"` : ""}. Try different skill keywords or <a href="/recruiter.html" style="color:#a78bfa">rank a new batch</a> to build the pool.</p>`;
+        return;
+      }
+
+      grid.innerHTML = candidates.map(c => renderCard(c)).join("");
+    }
+
+    function renderCard(c) {
+      const scoreClass = c.bestScore >= 75 ? "high" : c.bestScore >= 50 ? "mid" : "low";
+      const statusBadge = c.status && c.status !== "new"
+        ? `<span class="talent-status-badge ${c.status}">${c.status.replace("_", " ")}</span>` : "";
+
+      const skills = c.skills.slice(0, 5);
+      const certs = c.certifications.slice(0, 2);
+
+      return `
+        <div class="talent-card">
+          <div class="talent-card-top">
+            <div>
+              <div class="talent-name">${escHtml(c.name || "Unknown")}</div>
+              <div class="talent-title">${escHtml(c.currentTitle || "—")}</div>
+            </div>
+            <span class="talent-score ${scoreClass}">${c.bestScore}</span>
+          </div>
+
+          <div class="talent-meta">
+            ${c.location ? `<span class="talent-meta-pill">📍 ${escHtml(c.location)}</span>` : ""}
+            ${c.yearsExperience != null ? `<span class="talent-meta-pill">⏱ ${c.yearsExperience} yrs</span>` : ""}
+            ${statusBadge}
+          </div>
+
+          ${skills.length ? `
+            <div class="talent-skills">
+              ${skills.map(s => `<span class="talent-skill-tag">${escHtml(s)}</span>`).join("")}
+              ${certs.map(s => `<span class="talent-skill-tag" style="border-color:rgba(34,197,94,0.2);background:rgba(34,197,94,0.07);color:#4ade80;">${escHtml(s)}</span>`).join("")}
+            </div>` : ""}
+
+          ${c.lastJobTitle ? `<div class="talent-last-role">Last ranked for: ${escHtml(c.lastJobTitle)}</div>` : ""}
+          ${c.contactInfo ? `<div class="talent-contact">✉ ${escHtml(c.contactInfo)}</div>` : ""}
+        </div>
+      `;
+    }
+
+    document.getElementById("filterBtn")?.addEventListener("click", () => {
+      loadPool(document.getElementById("skillFilter").value);
+    });
+    document.getElementById("skillFilter")?.addEventListener("keydown", e => {
+      if (e.key === "Enter") loadPool(e.target.value);
+    });
+
+    function escHtml(s) {
+      return String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+    }
+
+    boot();
+  </script>
+</body>
+</html>

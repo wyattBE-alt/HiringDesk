@@ -5,6 +5,9 @@ const resumeChip = document.getElementById("resumeChip");
 const emptyState = document.getElementById("emptyState");
 const resultsState = document.getElementById("resultsState");
 
+const SCORE_HISTORY_KEY = "hiringdesk_score_history";
+let lastJobQuery = "";
+
 // ── Credential management ────────────────────────────────────────────────────
 
 document.getElementById("addCredentialBtn").addEventListener("click", () => {
@@ -53,6 +56,7 @@ analyzeForm.addEventListener("submit", async (e) => {
   const resumeText = document.getElementById("resumeText").value.trim();
   const resumeFile = document.getElementById("resumeFile").files[0];
   const jobQuery = document.getElementById("jobQuery").value.trim();
+  lastJobQuery = jobQuery;
   const jobLocation = document.getElementById("jobLocation").value.trim();
 
   if (!resumeText && !resumeFile) {
@@ -82,6 +86,13 @@ analyzeForm.addEventListener("submit", async (e) => {
     currentResumeText = data.resumeText || resumeText;
     renderResults(data);
     setStatus("success", `Found ${data.stats.total} matching roles across all categories.`);
+    // Fire event so auth module can show save-to-profile banner
+    window.dispatchEvent(new CustomEvent("hd:analysis-complete", { detail: {
+      resumeText: currentResumeText,
+      avgScore: data.stats.averageScore,
+      topSkills: data.resumeSummary?.topSkills || [],
+      assessments: data.assessments
+    }}));
   } catch (err) {
     setStatus("error", err.message);
   } finally {
@@ -116,6 +127,10 @@ function renderResults(data) {
   document.getElementById("candidateImprovements").innerHTML = (resumeSummary.improvements || [])
     .map((i) => `<li>${i}</li>`)
     .join("");
+
+  const topScore = assessments.length ? Math.max(...assessments.map(a => a.score || 0)) : 0;
+  saveScoreSession(lastJobQuery, topScore, resumeSummary.improvements || []);
+  renderScoreHistory();
 
   // Claimed credentials
   const claimedCreds = resumeSummary.claimedCredentials || [];
@@ -219,6 +234,17 @@ function renderJobCard(assessment) {
     ? `<a href="${escapeAttr(job.applyUrl)}" target="_blank" rel="noopener noreferrer" class="button-link">Apply Now ↗</a>`
     : "";
 
+  const logAppBtn = `<button
+    class="button-link hd-log-app-btn"
+    style="background:rgba(37,99,235,0.12);border:1px solid rgba(37,99,235,0.22);border-radius:8px;padding:6px 12px;cursor:pointer;color:#60a5fa;font-size:0.78rem;font-weight:600;"
+    data-job-title="${escapeAttr(job.title || "")}"
+    data-company="${escapeAttr(job.company || "")}"
+    data-apply-url="${escapeAttr(job.applyUrl || "")}"
+    data-score="${score}"
+    data-matched-skills="${escapeAttr(JSON.stringify(matchedSkills || []))}"
+    data-missing-skills="${escapeAttr(JSON.stringify(missingSkills || []))}"
+  >+ Log Application</button>`;
+
   const remotePill = job.isRemote
     ? `<span class="remote-pill">Remote</span>`
     : "";
@@ -262,6 +288,7 @@ function renderJobCard(assessment) {
 
       <div class="action-row">
         ${applyButton}
+        ${logAppBtn}
         <button
           class="action-button tailor-action"
           onclick="tailorResume('${escapeAttr(job.id)}', this)"
@@ -552,3 +579,35 @@ function escapeHtml(str) {
 function escapeAttr(str) {
   return String(str ?? "").replace(/'/g, "\\'").replace(/"/g, "&quot;");
 }
+
+// ── Score history ─────────────────────────────────────────────────────────────
+
+function saveScoreSession(jobQuery, topScore, improvements) {
+  let history = [];
+  try { history = JSON.parse(localStorage.getItem(SCORE_HISTORY_KEY) || "[]"); } catch { /* ignore */ }
+  history.unshift({ timestamp: new Date().toISOString(), jobQuery, topScore, improvements });
+  if (history.length > 20) history = history.slice(0, 20);
+  try { localStorage.setItem(SCORE_HISTORY_KEY, JSON.stringify(history)); } catch { /* quota */ }
+}
+
+function renderScoreHistory() {
+  const panel = document.getElementById("scoreHistoryPanel");
+  const list = document.getElementById("scoreHistoryList");
+  if (!panel || !list) return;
+  let history = [];
+  try { history = JSON.parse(localStorage.getItem(SCORE_HISTORY_KEY) || "[]"); } catch { /* ignore */ }
+  if (!history.length) { panel.style.display = "none"; return; }
+  panel.style.display = "";
+  list.innerHTML = history.map(({ timestamp, jobQuery, topScore }) => {
+    const date = new Date(timestamp);
+    const label = date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    const scoreClass = topScore >= 75 ? "qualified" : topScore >= 50 ? "borderline" : "stretch";
+    return `<li class="score-history-item">
+      <span class="score-history-date">${label}</span>
+      <span class="score-history-query">${escapeHtml(jobQuery || "—")}</span>
+      <span class="rank-score ${scoreClass}" style="font-size:.75rem;padding:.1rem .35rem">${topScore}</span>
+    </li>`;
+  }).join("");
+}
+
+renderScoreHistory();
