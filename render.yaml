@@ -1,0 +1,25 @@
+# Render Blueprint — deploys HiringDesk as a free Node web service.
+# Postgres is hosted separately on Neon (free, no card, permanent).
+# In Render: New → Blueprint → pick the HiringDesk repo → fill the 3 secret env vars below.
+services:
+  - type: web
+    name: hiringdesk
+    runtime: node
+    plan: free
+    branch: main
+    buildCommand: npm install
+    startCommand: node server.js
+    healthCheckPath: /
+    envVars:
+      # Pin Node to satisfy package.json engines (>=22.5.0)
+      - key: NODE_VERSION
+        value: 22.11.0
+      # Neon connection string — paste from the Neon dashboard (includes ?sslmode=require)
+      - key: DATABASE_URL
+        sync: false
+      # Anthropic API key (Claude ranking/tailoring)
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      # JSearch RapidAPI key (live job search)
+      - key: JSEARCH_API_KEY
+        sync: false
