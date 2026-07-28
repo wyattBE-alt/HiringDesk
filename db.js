@@ -1,16 +1,31 @@
-import { DatabaseSync } from "node:sqlite";
-import path from "path";
-import { fileURLToPath } from "url";
+import pg from "pg";
 import { scryptSync, randomBytes, timingSafeEqual } from "node:crypto";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const db = new DatabaseSync(path.join(__dirname, "hiringdesk.db"));
+const { Pool } = pg;
 
-db.exec("PRAGMA journal_mode = WAL");
+const connectionString = process.env.DATABASE_URL;
+if (!connectionString) {
+  throw new Error(
+    "DATABASE_URL is not set. Provision a Postgres database (Railway: add a Postgres plugin) " +
+    "and set DATABASE_URL. For local dev, point it at a local Postgres or Railway's DATABASE_PUBLIC_URL."
+  );
+}
 
-db.exec(`
+// Railway internal hostnames + localhost don't use SSL; public/managed hosts do.
+const noSsl = /railway\.internal|localhost|127\.0\.0\.1/.test(connectionString) || process.env.PGSSL === "disable";
+
+const pool = new Pool({
+  connectionString,
+  ssl: noSsl ? false : { rejectUnauthorized: false },
+});
+
+// ─────────────────────────────────────────────
+//  SCHEMA — created once on startup (top-level await)
+// ─────────────────────────────────────────────
+
+await pool.query(`
   CREATE TABLE IF NOT EXISTS jobs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
     title TEXT NOT NULL,
     department TEXT,
     location TEXT,
@@ -18,11 +33,11 @@ db.exec(`
     required_certs TEXT,
     min_years_exp INTEGER DEFAULT 0,
     additional_notes TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT NOW()
   );
 
   CREATE TABLE IF NOT EXISTS candidates (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
     name TEXT,
     current_title TEXT,
     location TEXT,
@@ -31,11 +46,15 @@ db.exec(`
     skills TEXT,
     certifications TEXT,
     resume_text TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    status TEXT DEFAULT 'new',
+    status_updated_at TIMESTAMPTZ,
+    opt_in INTEGER DEFAULT 0,
+    pool_score INTEGER DEFAULT 0
   );
 
   CREATE TABLE IF NOT EXISTS rankings (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
     candidate_id INTEGER REFERENCES candidates(id),
     job_id INTEGER REFERENCES jobs(id),
     score INTEGER,
@@ -45,33 +64,33 @@ db.exec(`
     matched_certs TEXT,
     missing_certs TEXT,
     reason TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT NOW()
   );
 
   CREATE TABLE IF NOT EXISTS hiring_signals (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
     skill TEXT,
     cert TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT NOW()
   );
 
   CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
     email TEXT UNIQUE NOT NULL,
     password_hash TEXT NOT NULL,
     role TEXT NOT NULL DEFAULT 'applicant',
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT NOW()
   );
 
   CREATE TABLE IF NOT EXISTS user_sessions (
     token TEXT PRIMARY KEY,
     user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-    expires_at DATETIME NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    expires_at TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
   );
 
   CREATE TABLE IF NOT EXISTS job_applications (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
     user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
     job_title TEXT NOT NULL,
     company TEXT,
@@ -80,129 +99,145 @@ db.exec(`
     matched_skills TEXT,
     missing_skills TEXT,
     status TEXT NOT NULL DEFAULT 'applied',
-    applied_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    applied_at TIMESTAMPTZ DEFAULT NOW(),
     notes TEXT
   );
 
   CREATE TABLE IF NOT EXISTS resume_snapshots (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
     user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
     resume_text TEXT,
     avg_score INTEGER,
     top_skills TEXT,
+    job_query TEXT,
+    top_score INTEGER,
     snapshot_label TEXT DEFAULT 'update',
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT NOW()
   );
+
+  -- Idempotent migration for tables created before job_query/top_score existed
+  ALTER TABLE resume_snapshots ADD COLUMN IF NOT EXISTS job_query TEXT;
+  ALTER TABLE resume_snapshots ADD COLUMN IF NOT EXISTS top_score INTEGER;
 `);
 
-// Migrate existing candidates table — safe on re-run
-for (const sql of [
-  "ALTER TABLE candidates ADD COLUMN status TEXT DEFAULT 'new'",
-  "ALTER TABLE candidates ADD COLUMN status_updated_at DATETIME",
-  "ALTER TABLE candidates ADD COLUMN opt_in INTEGER DEFAULT 0",
-  "ALTER TABLE candidates ADD COLUMN pool_score INTEGER DEFAULT 0",
-]) {
-  try { db.exec(sql); } catch { /* column already exists */ }
-}
+// ─────────────────────────────────────────────
+//  RECRUITER — JOBS + CANDIDATES + RANKINGS
+// ─────────────────────────────────────────────
 
-const insertJob = db.prepare(`
-  INSERT INTO jobs (title, department, location, required_skills, required_certs, min_years_exp, additional_notes)
-  VALUES (?, ?, ?, ?, ?, ?, ?)
-`);
-
-const insertCandidate = db.prepare(`
-  INSERT INTO candidates (name, current_title, location, contact_info, years_experience, skills, certifications, resume_text)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-`);
-
-const insertRanking = db.prepare(`
-  INSERT INTO rankings (candidate_id, job_id, score, tier, matched_skills, missing_skills, matched_certs, missing_certs, reason)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-`);
-
-export function saveJobAndCandidates(job, candidates, resumeTexts) {
-  db.exec("BEGIN");
+export async function saveJobAndCandidates(job, candidates, resumeTexts) {
+  const client = await pool.connect();
   try {
-    const jobResult = insertJob.run(
-      job.title, job.department || null, job.location || null,
-      job.requiredSkills || null, job.requiredCertifications || null,
-      job.minYearsExp || 0, job.additionalNotes || null
+    await client.query("BEGIN");
+
+    const jobResult = await client.query(
+      `INSERT INTO jobs (title, department, location, required_skills, required_certs, min_years_exp, additional_notes)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+      [
+        job.title, job.department || null, job.location || null,
+        job.requiredSkills || null, job.requiredCertifications || null,
+        job.minYearsExp || 0, job.additionalNotes || null,
+      ]
     );
-    const jobId = jobResult.lastInsertRowid;
+    const jobId = jobResult.rows[0].id;
     const candidateIds = [];
 
     for (const c of candidates) {
       const resumeText = (resumeTexts[c.resumeIndex] || "").slice(0, 20000);
-      const candidateResult = insertCandidate.run(
-        c.name || "Unknown",
-        c.currentTitle || null,
-        c.location || null,
-        c.contactInfo || null,
-        c.yearsExperience ?? null,
-        JSON.stringify(c.matchedSkills || []),
-        JSON.stringify(c.matchedCertifications || []),
-        resumeText
+      const candidateResult = await client.query(
+        `INSERT INTO candidates (name, current_title, location, contact_info, years_experience, skills, certifications, resume_text)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+        [
+          c.name || "Unknown",
+          c.currentTitle || null,
+          c.location || null,
+          c.contactInfo || null,
+          c.yearsExperience ?? null,
+          JSON.stringify(c.matchedSkills || []),
+          JSON.stringify(c.matchedCertifications || []),
+          resumeText,
+        ]
       );
-      const candidateId = candidateResult.lastInsertRowid;
-      candidateIds.push(Number(candidateId));
+      const candidateId = candidateResult.rows[0].id;
+      candidateIds.push(candidateId);
 
-      insertRanking.run(
-        candidateId, jobId, c.score, c.tier,
-        JSON.stringify(c.matchedSkills || []),
-        JSON.stringify(c.missingSkills || []),
-        JSON.stringify(c.matchedCertifications || []),
-        JSON.stringify(c.missingCertifications || []),
-        c.reason || ""
+      await client.query(
+        `INSERT INTO rankings (candidate_id, job_id, score, tier, matched_skills, missing_skills, matched_certs, missing_certs, reason)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [
+          candidateId, jobId, c.score, c.tier,
+          JSON.stringify(c.matchedSkills || []),
+          JSON.stringify(c.missingSkills || []),
+          JSON.stringify(c.matchedCertifications || []),
+          JSON.stringify(c.missingCertifications || []),
+          c.reason || "",
+        ]
       );
     }
 
-    db.exec("COMMIT");
+    await client.query("COMMIT");
     return { jobId, candidateIds };
   } catch (err) {
-    db.exec("ROLLBACK");
+    await client.query("ROLLBACK");
     throw err;
+  } finally {
+    client.release();
   }
 }
 
-export function updateCandidateStatus(candidateId, status) {
-  db.prepare(
-    `UPDATE candidates SET status = ?, status_updated_at = CURRENT_TIMESTAMP WHERE id = ?`
-  ).run(status, candidateId);
+export async function updateCandidateStatus(candidateId, status) {
+  await pool.query(
+    `UPDATE candidates SET status = $1, status_updated_at = NOW() WHERE id = $2`,
+    [status, candidateId]
+  );
 }
 
-export function recordHiringSignal(skills = [], certs = []) {
-  const insertSignal = db.prepare(`INSERT INTO hiring_signals (skill, cert) VALUES (?, ?)`);
-  db.exec("BEGIN");
+export async function recordHiringSignal(skills = [], certs = []) {
+  const client = await pool.connect();
   try {
-    for (const skill of skills) insertSignal.run(skill.toLowerCase(), null);
-    for (const cert of certs) insertSignal.run(null, cert.toLowerCase());
-    db.exec("COMMIT");
+    await client.query("BEGIN");
+    for (const skill of skills) {
+      await client.query(`INSERT INTO hiring_signals (skill, cert) VALUES ($1, $2)`, [skill.toLowerCase(), null]);
+    }
+    for (const cert of certs) {
+      await client.query(`INSERT INTO hiring_signals (skill, cert) VALUES ($1, $2)`, [null, cert.toLowerCase()]);
+    }
+    await client.query("COMMIT");
   } catch (err) {
-    db.exec("ROLLBACK");
+    await client.query("ROLLBACK");
     throw err;
+  } finally {
+    client.release();
   }
 }
 
-export function getHiringSignals() {
-  const rows = db.prepare(`SELECT skill, cert FROM hiring_signals`).all();
+export async function getHiringSignals() {
+  const { rows } = await pool.query(`SELECT skill, cert FROM hiring_signals`);
   return {
     skills: new Set(rows.filter(r => r.skill).map(r => r.skill)),
     certs: new Set(rows.filter(r => r.cert).map(r => r.cert)),
   };
 }
 
-export function getPastCandidates() {
-  return db.prepare(`
-    SELECT c.id, c.name, c.current_title, c.location, c.contact_info,
-           c.years_experience, c.skills, c.certifications, c.resume_text,
-           c.status, MAX(r.score) as best_score
-    FROM candidates c
-    JOIN rankings r ON r.candidate_id = c.id
-    WHERE c.resume_text IS NOT NULL AND c.resume_text != ''
-    GROUP BY COALESCE(NULLIF(c.contact_info, ''), CAST(c.id AS TEXT))
+export async function getPastCandidates() {
+  // Dedupe by contact_info (fall back to id), keeping each candidate's best ranking score.
+  const { rows } = await pool.query(`
+    SELECT * FROM (
+      SELECT DISTINCT ON (COALESCE(NULLIF(c.contact_info, ''), c.id::text))
+             c.id, c.name, c.current_title, c.location, c.contact_info,
+             c.years_experience, c.skills, c.certifications, c.resume_text,
+             c.status, agg.best_score
+      FROM candidates c
+      JOIN (
+        SELECT candidate_id, MAX(score) AS best_score
+        FROM rankings GROUP BY candidate_id
+      ) agg ON agg.candidate_id = c.id
+      WHERE c.resume_text IS NOT NULL AND c.resume_text <> ''
+      ORDER BY COALESCE(NULLIF(c.contact_info, ''), c.id::text), agg.best_score DESC
+    ) t
     ORDER BY best_score DESC
     LIMIT 300
-  `).all().map(r => ({
+  `);
+  return rows.map(r => ({
     id: r.id,
     name: r.name,
     currentTitle: r.current_title,
@@ -213,15 +248,16 @@ export function getPastCandidates() {
     certifications: JSON.parse(r.certifications || "[]"),
     resumeText: r.resume_text,
     status: r.status || "new",
-    bestScore: r.best_score
+    bestScore: r.best_score,
   }));
 }
 
-export function getCandidateCount() {
-  return db.prepare(`
-    SELECT COUNT(DISTINCT COALESCE(NULLIF(contact_info, ''), CAST(id AS TEXT))) as count
+export async function getCandidateCount() {
+  const { rows } = await pool.query(`
+    SELECT COUNT(DISTINCT COALESCE(NULLIF(contact_info, ''), id::text)) AS count
     FROM candidates
-  `).get().count;
+  `);
+  return Number(rows[0].count);
 }
 
 // ─────────────────────────────────────────────
@@ -244,68 +280,73 @@ function generateToken() {
   return randomBytes(32).toString("hex");
 }
 
-export function createUser(email, password, role = "applicant") {
-  const existing = db.prepare("SELECT id FROM users WHERE email = ?").get(email.toLowerCase());
-  if (existing) throw new Error("EMAIL_TAKEN");
+export async function createUser(email, password, role = "applicant") {
+  const existing = await pool.query("SELECT id FROM users WHERE email = $1", [email.toLowerCase()]);
+  if (existing.rows.length) throw new Error("EMAIL_TAKEN");
   const password_hash = hashPassword(password);
-  const result = db.prepare(
-    "INSERT INTO users (email, password_hash, role) VALUES (?, ?, ?)"
-  ).run(email.toLowerCase(), password_hash, role);
-  return { id: Number(result.lastInsertRowid), email: email.toLowerCase(), role };
+  const result = await pool.query(
+    "INSERT INTO users (email, password_hash, role) VALUES ($1, $2, $3) RETURNING id",
+    [email.toLowerCase(), password_hash, role]
+  );
+  return { id: result.rows[0].id, email: email.toLowerCase(), role };
 }
 
-export function loginUser(email, password) {
-  const user = db.prepare("SELECT * FROM users WHERE email = ?").get(email.toLowerCase());
+export async function loginUser(email, password) {
+  const { rows } = await pool.query("SELECT * FROM users WHERE email = $1", [email.toLowerCase()]);
+  const user = rows[0];
   if (!user) throw new Error("INVALID_CREDENTIALS");
   if (!verifyPassword(password, user.password_hash)) throw new Error("INVALID_CREDENTIALS");
   // Create session — 30 days
   const token = generateToken();
   const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-  db.prepare("INSERT INTO user_sessions (token, user_id, expires_at) VALUES (?, ?, ?)").run(token, user.id, expires);
+  await pool.query("INSERT INTO user_sessions (token, user_id, expires_at) VALUES ($1, $2, $3)", [token, user.id, expires]);
   return { token, user: { id: user.id, email: user.email, role: user.role } };
 }
 
-export function getUserFromToken(token) {
+export async function getUserFromToken(token) {
   if (!token) return null;
-  const row = db.prepare(`
+  const { rows } = await pool.query(`
     SELECT u.id, u.email, u.role
     FROM user_sessions s
     JOIN users u ON u.id = s.user_id
-    WHERE s.token = ? AND s.expires_at > CURRENT_TIMESTAMP
-  `).get(token);
-  return row || null;
+    WHERE s.token = $1 AND s.expires_at > NOW()
+  `, [token]);
+  return rows[0] || null;
 }
 
-export function deleteSession(token) {
-  db.prepare("DELETE FROM user_sessions WHERE token = ?").run(token);
+export async function deleteSession(token) {
+  await pool.query("DELETE FROM user_sessions WHERE token = $1", [token]);
 }
 
 // ─────────────────────────────────────────────
 //  JOB APPLICATIONS
 // ─────────────────────────────────────────────
 
-export function saveApplication(userId, app) {
-  const result = db.prepare(`
-    INSERT INTO job_applications (user_id, job_title, company, apply_url, score, matched_skills, missing_skills, status, notes)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(
-    userId,
-    app.jobTitle || "",
-    app.company || "",
-    app.applyUrl || "",
-    app.score ?? null,
-    JSON.stringify(app.matchedSkills || []),
-    JSON.stringify(app.missingSkills || []),
-    app.status || "applied",
-    app.notes || ""
+export async function saveApplication(userId, app) {
+  const result = await pool.query(
+    `INSERT INTO job_applications (user_id, job_title, company, apply_url, score, matched_skills, missing_skills, status, notes)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
+    [
+      userId,
+      app.jobTitle || "",
+      app.company || "",
+      app.applyUrl || "",
+      app.score ?? null,
+      JSON.stringify(app.matchedSkills || []),
+      JSON.stringify(app.missingSkills || []),
+      app.status || "applied",
+      app.notes || "",
+    ]
   );
-  return Number(result.lastInsertRowid);
+  return result.rows[0].id;
 }
 
-export function getApplications(userId) {
-  return db.prepare(`
-    SELECT * FROM job_applications WHERE user_id = ? ORDER BY applied_at DESC
-  `).all(userId).map(r => ({
+export async function getApplications(userId) {
+  const { rows } = await pool.query(
+    `SELECT * FROM job_applications WHERE user_id = $1 ORDER BY applied_at DESC`,
+    [userId]
+  );
+  return rows.map(r => ({
     id: r.id,
     jobTitle: r.job_title,
     company: r.company,
@@ -315,42 +356,56 @@ export function getApplications(userId) {
     missingSkills: JSON.parse(r.missing_skills || "[]"),
     status: r.status,
     appliedAt: r.applied_at,
-    notes: r.notes
+    notes: r.notes,
   }));
 }
 
-export function updateApplicationStatus(appId, userId, status) {
-  db.prepare(`UPDATE job_applications SET status = ? WHERE id = ? AND user_id = ?`).run(status, appId, userId);
+export async function updateApplicationStatus(appId, userId, status) {
+  await pool.query(`UPDATE job_applications SET status = $1 WHERE id = $2 AND user_id = $3`, [status, appId, userId]);
 }
 
-export function deleteApplication(appId, userId) {
-  db.prepare(`DELETE FROM job_applications WHERE id = ? AND user_id = ?`).run(appId, userId);
+export async function deleteApplication(appId, userId) {
+  await pool.query(`DELETE FROM job_applications WHERE id = $1 AND user_id = $2`, [appId, userId]);
 }
 
 // ─────────────────────────────────────────────
 //  RESUME SNAPSHOTS
 // ─────────────────────────────────────────────
 
-export function saveResumeSnapshot(userId, { resumeText, avgScore, topSkills }) {
+export async function saveResumeSnapshot(userId, { resumeText, avgScore, topSkills, jobQuery, topScore }) {
   // First snapshot = baseline, subsequent = update
-  const count = db.prepare("SELECT COUNT(*) as c FROM resume_snapshots WHERE user_id = ?").get(userId).c;
+  const { rows } = await pool.query("SELECT COUNT(*) AS c FROM resume_snapshots WHERE user_id = $1", [userId]);
+  const count = Number(rows[0].c);
   const label = count === 0 ? "baseline" : `update_${count}`;
-  db.prepare(`
-    INSERT INTO resume_snapshots (user_id, resume_text, avg_score, top_skills, snapshot_label)
-    VALUES (?, ?, ?, ?, ?)
-  `).run(userId, (resumeText || "").slice(0, 20000), avgScore ?? null, JSON.stringify(topSkills || []), label);
+  await pool.query(
+    `INSERT INTO resume_snapshots (user_id, resume_text, avg_score, top_skills, job_query, top_score, snapshot_label)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+    [
+      userId,
+      (resumeText || "").slice(0, 20000),
+      avgScore ?? null,
+      JSON.stringify(topSkills || []),
+      (jobQuery || "").slice(0, 200) || null,
+      Number.isFinite(topScore) ? topScore : null,
+      label,
+    ]
+  );
 }
 
-export function getResumeSnapshots(userId) {
-  return db.prepare(`
-    SELECT id, avg_score, top_skills, snapshot_label, created_at
-    FROM resume_snapshots WHERE user_id = ? ORDER BY created_at ASC
-  `).all(userId).map(r => ({
+export async function getResumeSnapshots(userId) {
+  const { rows } = await pool.query(
+    `SELECT id, avg_score, top_skills, job_query, top_score, snapshot_label, created_at
+     FROM resume_snapshots WHERE user_id = $1 ORDER BY created_at ASC`,
+    [userId]
+  );
+  return rows.map(r => ({
     id: r.id,
     avgScore: r.avg_score,
     topSkills: JSON.parse(r.top_skills || "[]"),
+    jobQuery: r.job_query,
+    topScore: r.top_score,
     label: r.snapshot_label,
-    createdAt: r.created_at
+    createdAt: r.created_at,
   }));
 }
 
@@ -358,28 +413,34 @@ export function getResumeSnapshots(userId) {
 //  RECRUITER TALENT POOL
 // ─────────────────────────────────────────────
 
-export function getTalentPool({ skills = [], minScore = 50, limit = 100 } = {}) {
-  // LEFT JOIN includes opt-in applicants who have no recruiter ranking yet
-  const allCandidates = db.prepare(`
-    SELECT c.id, c.name, c.current_title, c.location, c.contact_info,
-           c.years_experience, c.skills, c.certifications, c.resume_text,
-           c.status,
-           CASE WHEN MAX(r.score) IS NOT NULL THEN MAX(r.score)
-                ELSE COALESCE(c.pool_score, 0)
-           END AS best_score,
-           COALESCE(MAX(j.title), 'Opt-In') AS last_job_title
-    FROM candidates c
-    LEFT JOIN rankings r ON r.candidate_id = c.id
-    LEFT JOIN jobs j ON j.id = r.job_id
-    WHERE c.resume_text IS NOT NULL AND c.resume_text != ''
-      AND (r.id IS NOT NULL OR c.opt_in = 1)
-    GROUP BY COALESCE(NULLIF(c.contact_info, ''), CAST(c.id AS TEXT))
-    HAVING best_score >= ?
+export async function getTalentPool({ skills = [], minScore = 50, limit = 100 } = {}) {
+  // Includes opt-in applicants who have no recruiter ranking yet.
+  // Dedupe by contact_info (fall back to id), keeping the best available score.
+  const { rows } = await pool.query(`
+    SELECT * FROM (
+      SELECT DISTINCT ON (COALESCE(NULLIF(c.contact_info, ''), c.id::text))
+        c.id, c.name, c.current_title, c.location, c.contact_info,
+        c.years_experience, c.skills, c.certifications, c.resume_text, c.status,
+        CASE WHEN agg.max_score IS NOT NULL THEN agg.max_score
+             ELSE COALESCE(c.pool_score, 0) END AS best_score,
+        COALESCE(agg.last_job_title, 'Opt-In') AS last_job_title
+      FROM candidates c
+      LEFT JOIN (
+        SELECT r.candidate_id, MAX(r.score) AS max_score, MAX(j.title) AS last_job_title
+        FROM rankings r
+        LEFT JOIN jobs j ON j.id = r.job_id
+        GROUP BY r.candidate_id
+      ) agg ON agg.candidate_id = c.id
+      WHERE c.resume_text IS NOT NULL AND c.resume_text <> ''
+        AND (agg.candidate_id IS NOT NULL OR c.opt_in = 1)
+      ORDER BY COALESCE(NULLIF(c.contact_info, ''), c.id::text), best_score DESC
+    ) t
+    WHERE best_score >= $1
     ORDER BY best_score DESC
     LIMIT 200
-  `).all(minScore);
+  `, [minScore]);
 
-  let results = allCandidates.map(r => ({
+  let results = rows.map(r => ({
     id: r.id,
     name: r.name,
     currentTitle: r.current_title,
@@ -391,7 +452,7 @@ export function getTalentPool({ skills = [], minScore = 50, limit = 100 } = {}) 
     bestScore: r.best_score,
     status: r.status || "new",
     lastJobTitle: r.last_job_title,
-    resumeText: r.resume_text
+    resumeText: r.resume_text,
   }));
 
   // Filter by requested skills if provided
@@ -409,33 +470,38 @@ export function getTalentPool({ skills = [], minScore = 50, limit = 100 } = {}) 
   return results.slice(0, limit);
 }
 
-export function saveTalentPoolCandidate({ name, currentTitle, location, contactInfo, yearsExperience, topSkills, resumeText, avgScore }) {
+export async function saveTalentPoolCandidate({ name, currentTitle, location, contactInfo, yearsExperience, topSkills, resumeText, avgScore }) {
   // Upsert by contact_info to avoid duplicates from repeat submissions
   if (contactInfo) {
-    const existing = db.prepare(`SELECT id FROM candidates WHERE contact_info = ? AND opt_in = 1`).get(contactInfo);
-    if (existing) {
-      db.prepare(`
-        UPDATE candidates
-        SET name = ?, current_title = ?, years_experience = ?, skills = ?,
-            resume_text = ?, pool_score = ?, status_updated_at = CURRENT_TIMESTAMP
-        WHERE id = ?
-      `).run(name || "Unknown", currentTitle || null, yearsExperience ?? null,
-             JSON.stringify(topSkills || []), (resumeText || "").slice(0, 20000),
-             avgScore ?? 0, existing.id);
-      return Number(existing.id);
+    const existing = await pool.query(`SELECT id FROM candidates WHERE contact_info = $1 AND opt_in = 1`, [contactInfo]);
+    if (existing.rows.length) {
+      const id = existing.rows[0].id;
+      await pool.query(
+        `UPDATE candidates
+         SET name = $1, current_title = $2, years_experience = $3, skills = $4,
+             resume_text = $5, pool_score = $6, status_updated_at = NOW()
+         WHERE id = $7`,
+        [
+          name || "Unknown", currentTitle || null, yearsExperience ?? null,
+          JSON.stringify(topSkills || []), (resumeText || "").slice(0, 20000),
+          avgScore ?? 0, id,
+        ]
+      );
+      return id;
     }
   }
-  const result = db.prepare(`
-    INSERT INTO candidates
-      (name, current_title, location, contact_info, years_experience,
-       skills, certifications, resume_text, opt_in, pool_score)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
-  `).run(
-    name || "Unknown", currentTitle || null, location || null, contactInfo || null,
-    yearsExperience ?? null, JSON.stringify(topSkills || []), "[]",
-    (resumeText || "").slice(0, 20000), avgScore ?? 0
+  const result = await pool.query(
+    `INSERT INTO candidates
+       (name, current_title, location, contact_info, years_experience,
+        skills, certifications, resume_text, opt_in, pool_score)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 1, $9) RETURNING id`,
+    [
+      name || "Unknown", currentTitle || null, location || null, contactInfo || null,
+      yearsExperience ?? null, JSON.stringify(topSkills || []), "[]",
+      (resumeText || "").slice(0, 20000), avgScore ?? 0,
+    ]
   );
-  return Number(result.lastInsertRowid);
+  return result.rows[0].id;
 }
 
-export default db;
+export default pool;

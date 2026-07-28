@@ -125,19 +125,26 @@ git push
 
 1. Go to **railway.app** → login with GitHub
 2. **New Project → Deploy from GitHub repo** → select your repo
-3. Click **Variables** tab → add:
+3. **Add a Postgres database:** in the same project, click **New → Database → Add PostgreSQL.**
+   Railway auto-injects a `DATABASE_URL` variable that the app reads on startup.
+   (The app talks to Postgres over the private network — no SSL needed, handled automatically.)
+4. Click your **app service → Variables** tab → add:
    - `ANTHROPIC_API_KEY` = sk-ant-...
    - `JSEARCH_API_KEY` = your RapidAPI key
+   - `DATABASE_URL` — usually auto-added by the Postgres plugin. If not, reference it:
+     set `DATABASE_URL` = `${{ Postgres.DATABASE_URL }}`
    - Any other secrets your app needs
-4. **Settings → Networking → Generate Domain**
-5. Your site is live at `yourapp.up.railway.app`
+5. **Settings → Networking → Generate Domain**
+6. Your site is live at `yourapp.up.railway.app`. Tables are created automatically on first boot.
 
 ### ⚠️ Railway gotchas
 | Issue | Fix |
 |---|---|
 | URL says `.railway.internal` | That's the private URL — generate a public domain in Settings → Networking |
 | App crashes on start | Check Logs tab — usually a missing env var |
-| Database resets on redeploy | Add a Railway Volume mounted at `/app` for persistence |
+| `DATABASE_URL is not set` on boot | Add the Postgres plugin (step 3) and reference `${{ Postgres.DATABASE_URL }}` in the app's Variables |
+| `no pg_hba.conf entry ... SSL off` | You're hitting the public host; set `PGSSL` (leave SSL on) or use the internal `DATABASE_URL` |
+| Data persists now | ✅ Postgres is a managed service — redeploys no longer wipe data (the old SQLite-file problem is gone) |
 
 ### Auto-redeploy
 Every time you `git push`, Railway automatically redeploys. No action needed.

@@ -216,6 +216,15 @@ function injectModalStyles() {
     .hd-save-btn:hover { background: #1d4ed8; }
     .hd-save-btn:disabled { opacity: 0.55; cursor: not-allowed; }
     .hd-save-btn.saved { background: #16a34a; }
+    /* Auto-save status states */
+    .hd-save-banner--saving { opacity: 0.85; }
+    .hd-save-banner--saved {
+      background: rgba(34,197,94,0.1); border-color: rgba(34,197,94,0.28);
+    }
+    .hd-save-banner--saved .hd-save-banner-text strong { color: #4ade80; }
+    .hd-save-banner--error {
+      background: rgba(239,68,68,0.1); border-color: rgba(239,68,68,0.28);
+    }
   `;
   document.head.appendChild(style);
 }

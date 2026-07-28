@@ -88,10 +88,15 @@ analyzeForm.addEventListener("submit", async (e) => {
     renderResults(data);
     setStatus("success", `Found ${data.stats.total} matching roles across all categories.`);
     // Fire event so auth module can show save-to-profile banner
+    const topScore = (data.assessments || []).length
+      ? Math.max(...data.assessments.map((a) => a.score || 0))
+      : 0;
     window.dispatchEvent(new CustomEvent("hd:analysis-complete", { detail: {
       resumeText: currentResumeText,
       avgScore: data.stats.averageScore,
       topSkills: data.resumeSummary?.topSkills || [],
+      jobQuery: lastJobQuery,
+      topScore,
       assessments: data.assessments
     }}));
   } catch (err) {
@@ -158,10 +163,10 @@ function renderResults(data) {
     credSection.style.display = "none";
   }
 
-  document.getElementById("averageScore").textContent = stats.averageScore;
-  document.getElementById("qualifiedCount").textContent = stats.qualified;
-  document.getElementById("borderlineCount").textContent = stats.borderline;
-  document.getElementById("stretchCount").textContent = stats.stretch;
+  animateCount(document.getElementById("averageScore"), stats.averageScore);
+  animateCount(document.getElementById("qualifiedCount"), stats.qualified);
+  animateCount(document.getElementById("borderlineCount"), stats.borderline);
+  animateCount(document.getElementById("stretchCount"), stats.stretch);
   document.getElementById("qualifiedBadge").textContent = stats.qualified;
   document.getElementById("borderlineBadge").textContent = stats.borderline;
   document.getElementById("stretchBadge").textContent = stats.stretch;
@@ -178,7 +183,40 @@ function renderResults(data) {
 
   emptyState.style.display = "none";
   resultsState.classList.remove("results-hidden");
+  animateScoreRings();
   resultsState.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+// ── Entrance animations (respect reduced-motion) ──────────────────────────────
+
+const prefersReducedMotion = () =>
+  window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+
+function animateCount(el, target) {
+  if (!el) return;
+  target = Number(target) || 0;
+  if (prefersReducedMotion()) { el.textContent = target; return; }
+  const duration = 700, start = performance.now();
+  const tick = (now) => {
+    const p = Math.min(1, (now - start) / duration);
+    const eased = 1 - Math.pow(1 - p, 3);
+    el.textContent = Math.round(eased * target);
+    if (p < 1) requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}
+
+// Fill each score ring from 0 → its real value, and count the centered number up.
+function animateScoreRings() {
+  const rings = document.querySelectorAll(".score-ring[data-pct]");
+  const apply = () => rings.forEach((ring) => {
+    ring.style.setProperty("--pct", `${ring.dataset.pct}%`);
+    animateCount(ring.querySelector(".score-ring-value[data-count]"),
+      ring.querySelector(".score-ring-value")?.dataset.count);
+  });
+  if (prefersReducedMotion()) { apply(); return; }
+  // Two rAFs so the 0% start value is painted before transitioning up.
+  requestAnimationFrame(() => requestAnimationFrame(apply));
 }
 
 function renderLane(containerId, items, emptyMessage) {
@@ -266,8 +304,8 @@ function renderJobCard(assessment) {
           <p class="candidate-role">${escapeHtml(job.company)} · ${escapeHtml(job.location)} ${remotePill}</p>
           ${salary ? `<p class="candidate-role salary-line">${salary}</p>` : ""}
         </div>
-        <div class="score-ring ${bucket}" style="--pct:${score}%" aria-label="Match score: ${score}">
-          <span class="score-ring-value ${bucket}">${score}</span>
+        <div class="score-ring ${bucket}" style="--pct:0%" data-pct="${score}" aria-label="Match score: ${score}">
+          <span class="score-ring-value ${bucket}" data-count="${score}">0</span>
         </div>
       </div>
 
@@ -591,24 +629,111 @@ function saveScoreSession(jobQuery, topScore, improvements) {
   try { localStorage.setItem(SCORE_HISTORY_KEY, JSON.stringify(history)); } catch { /* quota */ }
 }
 
-function renderScoreHistory() {
+const normalizeQuery = (q) => String(q || "").trim().toLowerCase();
+const bucketForScore = (s) => (s >= 75 ? "qualified" : s >= 50 ? "borderline" : "stretch");
+
+// Build an inline SVG sparkline from an ordered (oldest→newest) score series.
+function buildSparkline(scores) {
+  const w = 232, h = 46, pad = 5;
+  if (scores.length < 2) return "";
+  const min = Math.min(...scores, 0);
+  const max = Math.max(...scores, 100);
+  const span = max - min || 1;
+  const stepX = (w - pad * 2) / (scores.length - 1);
+  const pts = scores.map((s, i) => {
+    const x = pad + i * stepX;
+    const y = h - pad - ((s - min) / span) * (h - pad * 2);
+    return [x, y];
+  });
+  const line = pts.map(([x, y], i) => `${i ? "L" : "M"}${x.toFixed(1)},${y.toFixed(1)}`).join(" ");
+  const area = `${line} L${pts.at(-1)[0].toFixed(1)},${h - pad} L${pts[0][0].toFixed(1)},${h - pad} Z`;
+  const last = pts.at(-1);
+  const cls = bucketForScore(scores.at(-1));
+  return `
+    <svg class="sparkline ${cls}" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" role="img" aria-hidden="true">
+      <path class="spark-area" d="${area}" />
+      <path class="spark-line" d="${line}" pathLength="1" />
+      <circle class="spark-dot" cx="${last[0].toFixed(1)}" cy="${last[1].toFixed(1)}" r="3.2" />
+    </svg>`;
+}
+
+function loadLocalHistory() {
+  try { return JSON.parse(localStorage.getItem(SCORE_HISTORY_KEY) || "[]"); } catch { return []; }
+}
+
+// Render the score-history panel. Pass a history array (newest-first) to render a
+// specific source; omit it to read this device's localStorage. `synced` flags that
+// the data came from the user's account (shown across devices).
+function renderScoreHistory(history, { synced = false } = {}) {
   const panel = document.getElementById("scoreHistoryPanel");
   const list = document.getElementById("scoreHistoryList");
   if (!panel || !list) return;
-  let history = [];
-  try { history = JSON.parse(localStorage.getItem(SCORE_HISTORY_KEY) || "[]"); } catch { /* ignore */ }
+  if (!Array.isArray(history)) history = loadLocalHistory();
   if (!history.length) { panel.style.display = "none"; return; }
   panel.style.display = "";
-  list.innerHTML = history.map(({ timestamp, jobQuery, topScore }) => {
+
+  // ── Per-role trend: only compare runs for the SAME role (apples to apples) ──
+  const latestQuery = normalizeQuery(history[0].jobQuery);
+  const sameRole = history
+    .filter((h) => normalizeQuery(h.jobQuery) === latestQuery)
+    .slice()
+    .reverse(); // oldest → newest
+  const series = sameRole.map((h) => h.topScore || 0);
+
+  let trendHtml = "";
+  if (series.length >= 2) {
+    const latest = series.at(-1);
+    const prev = series.at(-2);
+    const delta = latest - prev;
+    const dirClass = delta > 0 ? "up" : delta < 0 ? "down" : "flat";
+    const arrow = delta > 0 ? "▲" : delta < 0 ? "▼" : "—";
+    trendHtml = `
+      <div class="score-trend">
+        <div class="score-trend-head">
+          <span class="score-trend-role" title="${escapeAttr(history[0].jobQuery || "")}">${escapeHtml(history[0].jobQuery || "Role")}</span>
+          <span class="trend-delta trend-delta--${dirClass}">${arrow} ${delta > 0 ? "+" : ""}${delta}</span>
+        </div>
+        ${buildSparkline(series)}
+        <p class="score-trend-caption">${series.length} runs · best fit now <strong>${latest}</strong>${synced ? ` · <span class="score-trend-synced">☁ synced</span>` : ""}</p>
+      </div>`;
+  } else {
+    trendHtml = `<p class="score-trend-hint">Re-scan <strong>${escapeHtml(history[0].jobQuery || "this role")}</strong> after editing your resume to watch your fit score climb.</p>`;
+  }
+
+  // ── Full recent list (all roles), de-emphasized below the trend ──
+  const listHtml = history.map(({ timestamp, jobQuery, topScore }) => {
     const date = new Date(timestamp);
     const label = date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
-    const scoreClass = topScore >= 75 ? "qualified" : topScore >= 50 ? "borderline" : "stretch";
     return `<li class="score-history-item">
       <span class="score-history-date">${label}</span>
       <span class="score-history-query">${escapeHtml(jobQuery || "—")}</span>
-      <span class="rank-score ${scoreClass}" style="font-size:.75rem;padding:.1rem .35rem">${topScore}</span>
+      <span class="rank-score ${bucketForScore(topScore)}" style="font-size:.75rem;padding:.1rem .35rem">${topScore}</span>
     </li>`;
   }).join("");
+
+  list.innerHTML = `${trendHtml}<div class="score-history-rows">${listHtml}</div>`;
 }
 
-renderScoreHistory();
+// For logged-in users, render the trend from account-saved snapshots so it syncs
+// across devices. Anonymous (or on any error) → this device's localStorage.
+async function refreshScoreHistory() {
+  const token = (() => { try { return localStorage.getItem("hd_token"); } catch { return null; } })();
+  if (!token) { renderScoreHistory(); return; }
+  try {
+    const res = await fetch("/api/user/snapshots", { headers: { Authorization: `Bearer ${token}` } });
+    if (!res.ok) throw new Error("snapshots fetch failed");
+    const { snapshots = [] } = await res.json();
+    // Only snapshots that carry the per-role fields can drive the trend.
+    const usable = snapshots
+      .filter((s) => s.jobQuery && Number.isFinite(s.topScore))
+      .map((s) => ({ timestamp: s.createdAt, jobQuery: s.jobQuery, topScore: s.topScore }))
+      .reverse(); // API returns oldest→newest; panel wants newest-first
+    if (usable.length) { renderScoreHistory(usable, { synced: true }); return; }
+  } catch { /* fall through to local */ }
+  renderScoreHistory();
+}
+
+// Expose so the auth/save flow in index.html can re-sync after login or save.
+window.refreshScoreHistory = refreshScoreHistory;
+
+refreshScoreHistory();

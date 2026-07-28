@@ -55,12 +55,16 @@ app.use("/api/user",                 lightLimiter);
 app.use("/api/recruiter/talent-pool", lightLimiter);
 
 // ── Auth middleware ───────────────────────────────────────────────────────────
-function requireAuth(req, res, next) {
-  const token = (req.headers.authorization || "").replace("Bearer ", "").trim();
-  const user = getUserFromToken(token);
-  if (!user) return res.status(401).json({ error: "Not authenticated." });
-  req.user = user;
-  next();
+async function requireAuth(req, res, next) {
+  try {
+    const token = (req.headers.authorization || "").replace("Bearer ", "").trim();
+    const user = await getUserFromToken(token);
+    if (!user) return res.status(401).json({ error: "Not authenticated." });
+    req.user = user;
+    next();
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 }
 
 function requireRole(role) {
@@ -321,7 +325,7 @@ app.post("/api/analyze", upload.single("resumeFile"), async (req, res) => {
     // Opt-in: save to talent pool so recruiters can find this applicant
     if (req.body.allowRecruiterSearch === "true" && analysis.resumeSummary) {
       try {
-        saveTalentPoolCandidate({
+        await saveTalentPoolCandidate({
           name: analysis.resumeSummary.name,
           currentTitle: analysis.resumeSummary.currentTitle,
           location: "",
@@ -630,7 +634,7 @@ app.post("/api/recruiter/rank", upload.array("resumeFiles", 100), async (req, re
     // Save job + all ranked candidates to the database
     let candidateIds = [];
     try {
-      ({ candidateIds } = saveJobAndCandidates(job, ranked, capped));
+      ({ candidateIds } = await saveJobAndCandidates(job, ranked, capped));
     } catch (err) {
       console.error("DB save error (non-fatal):", err.message);
     }
@@ -654,11 +658,11 @@ app.post("/api/recruiter/rank", upload.array("resumeFiles", 100), async (req, re
   }
 });
 
-app.post("/api/recruiter/past-match", (req, res) => {
+app.post("/api/recruiter/past-match", async (req, res) => {
   try {
     const job = req.body;
-    const allPast = getPastCandidates();
-    const totalInDb = getCandidateCount();
+    const allPast = await getPastCandidates();
+    const totalInDb = await getCandidateCount();
 
     if (!allPast.length) {
       return res.json({ candidates: [], totalInDb: 0 });
@@ -676,7 +680,7 @@ app.post("/api/recruiter/past-match", (req, res) => {
     const minExp = parseInt(job.minYearsExp) || 0;
     const jobLocation = (job.location || "").toLowerCase();
 
-    const hiringSignals = getHiringSignals();
+    const hiringSignals = await getHiringSignals();
 
     const scored = allPast.map((c) => {
       const resumeLower = (c.resumeText || "").toLowerCase();
@@ -804,17 +808,17 @@ app.post("/api/recruiter/notify", async (req, res) => {
 //  CANDIDATE STATUS + FEEDBACK
 // ─────────────────────────────────────────────
 
-app.patch("/api/recruiter/candidate/status", express.json(), (req, res) => {
+app.patch("/api/recruiter/candidate/status", express.json(), async (req, res) => {
   try {
     const { candidateId, status } = req.body;
     const allowed = ["new", "interview_scheduled", "hired", "rejected"];
     if (!candidateId || !allowed.includes(status)) {
       return res.status(400).json({ error: "candidateId and valid status required." });
     }
-    updateCandidateStatus(candidateId, status);
+    await updateCandidateStatus(candidateId, status);
     if (status === "hired") {
       const { skills = [], certs = [] } = req.body;
-      if (skills.length || certs.length) recordHiringSignal(skills, certs);
+      if (skills.length || certs.length) await recordHiringSignal(skills, certs);
     }
     res.json({ ok: true });
   } catch (err) {
@@ -826,14 +830,14 @@ app.patch("/api/recruiter/candidate/status", express.json(), (req, res) => {
 //  AUTH
 // ─────────────────────────────────────────────
 
-app.post("/api/auth/register", express.json(), (req, res) => {
+app.post("/api/auth/register", express.json(), async (req, res) => {
   try {
     const { email, password, role } = req.body;
     if (!email || !password) return res.status(400).json({ error: "Email and password required." });
     if (password.length < 8) return res.status(400).json({ error: "Password must be at least 8 characters." });
     if (!["applicant", "recruiter"].includes(role)) return res.status(400).json({ error: "Role must be applicant or recruiter." });
-    const user = createUser(email, password, role);
-    const { token } = loginUser(email, password);
+    const user = await createUser(email, password, role);
+    const { token } = await loginUser(email, password);
     res.json({ token, user });
   } catch (err) {
     if (err.message === "EMAIL_TAKEN") return res.status(409).json({ error: "An account with that email already exists." });
@@ -841,11 +845,11 @@ app.post("/api/auth/register", express.json(), (req, res) => {
   }
 });
 
-app.post("/api/auth/login", express.json(), (req, res) => {
+app.post("/api/auth/login", express.json(), async (req, res) => {
   try {
     const { email, password } = req.body;
     if (!email || !password) return res.status(400).json({ error: "Email and password required." });
-    const result = loginUser(email, password);
+    const result = await loginUser(email, password);
     res.json(result);
   } catch (err) {
     if (err.message === "INVALID_CREDENTIALS") return res.status(401).json({ error: "Incorrect email or password." });
@@ -853,9 +857,9 @@ app.post("/api/auth/login", express.json(), (req, res) => {
   }
 });
 
-app.post("/api/auth/logout", requireAuth, (req, res) => {
+app.post("/api/auth/logout", requireAuth, async (req, res) => {
   const token = (req.headers.authorization || "").replace("Bearer ", "").trim();
-  deleteSession(token);
+  await deleteSession(token);
   res.json({ ok: true });
 });
 
@@ -867,29 +871,33 @@ app.get("/api/auth/me", requireAuth, (req, res) => {
 //  USER — JOB APPLICATIONS
 // ─────────────────────────────────────────────
 
-app.get("/api/user/applications", requireAuth, (req, res) => {
-  res.json({ applications: getApplications(req.user.id) });
+app.get("/api/user/applications", requireAuth, async (req, res) => {
+  try {
+    res.json({ applications: await getApplications(req.user.id) });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-app.post("/api/user/applications", requireAuth, express.json(), (req, res) => {
+app.post("/api/user/applications", requireAuth, express.json(), async (req, res) => {
   try {
-    const id = saveApplication(req.user.id, req.body);
+    const id = await saveApplication(req.user.id, req.body);
     res.json({ id });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-app.patch("/api/user/applications/:id", requireAuth, express.json(), (req, res) => {
+app.patch("/api/user/applications/:id", requireAuth, express.json(), async (req, res) => {
   const { status } = req.body;
   const allowed = ["applied", "interview", "accepted", "rejected"];
   if (!allowed.includes(status)) return res.status(400).json({ error: "Invalid status." });
-  updateApplicationStatus(parseInt(req.params.id), req.user.id, status);
+  await updateApplicationStatus(parseInt(req.params.id), req.user.id, status);
   res.json({ ok: true });
 });
 
-app.delete("/api/user/applications/:id", requireAuth, (req, res) => {
-  deleteApplication(parseInt(req.params.id), req.user.id);
+app.delete("/api/user/applications/:id", requireAuth, async (req, res) => {
+  await deleteApplication(parseInt(req.params.id), req.user.id);
   res.json({ ok: true });
 });
 
@@ -897,13 +905,17 @@ app.delete("/api/user/applications/:id", requireAuth, (req, res) => {
 //  USER — RESUME SNAPSHOTS
 // ─────────────────────────────────────────────
 
-app.get("/api/user/snapshots", requireAuth, (req, res) => {
-  res.json({ snapshots: getResumeSnapshots(req.user.id) });
+app.get("/api/user/snapshots", requireAuth, async (req, res) => {
+  try {
+    res.json({ snapshots: await getResumeSnapshots(req.user.id) });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-app.post("/api/user/snapshots", requireAuth, express.json(), (req, res) => {
+app.post("/api/user/snapshots", requireAuth, express.json(), async (req, res) => {
   try {
-    saveResumeSnapshot(req.user.id, req.body);
+    await saveResumeSnapshot(req.user.id, req.body);
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -914,12 +926,12 @@ app.post("/api/user/snapshots", requireAuth, express.json(), (req, res) => {
 //  RECRUITER — TALENT POOL
 // ─────────────────────────────────────────────
 
-app.get("/api/recruiter/talent-pool", requireAuth, requireRole("recruiter"), (req, res) => {
+app.get("/api/recruiter/talent-pool", requireAuth, requireRole("recruiter"), async (req, res) => {
   try {
     const skills = (req.query.skills || "").split(",").map(s => s.trim()).filter(Boolean);
     const minScore = parseInt(req.query.minScore) || 50;
-    const candidates = getTalentPool({ skills, minScore, limit: 100 });
-    const totalInDb = getCandidateCount();
+    const candidates = await getTalentPool({ skills, minScore, limit: 100 });
+    const totalInDb = await getCandidateCount();
     res.json({ candidates, totalInDb });
   } catch (err) {
     res.status(500).json({ error: err.message });
