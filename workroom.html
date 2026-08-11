@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>Work Room — PathAscent</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #05070f; --surface: rgba(10,13,24,0.7); --line: rgba(255,255,255,0.08);
+      --text: #eef0f8; --text-2: #8a96b8; --muted: #48506a;
+      --cyan: #35d6f0; --violet: #8b6cff; --peri: #5b8cff;
+      --font-d: 'Syne', system-ui, sans-serif; --font-b: 'Inter', system-ui, sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--font-b); background: var(--bg); color: var(--text);
+      min-height: 100vh; -webkit-font-smoothing: antialiased; overflow-x: hidden;
+    }
+    /* soft neon corners */
+    body::before, body::after {
+      content: ''; position: fixed; width: 520px; height: 520px; border-radius: 50%;
+      filter: blur(90px); z-index: 0; pointer-events: none; opacity: 0.5;
+    }
+    body::before { background: radial-gradient(circle, rgba(53,214,240,0.45), transparent 60%); top: -220px; left: -160px; }
+    body::after  { background: radial-gradient(circle, rgba(139,108,255,0.42), transparent 60%); bottom: -220px; right: -160px; }
+    .wrap { position: relative; z-index: 1; max-width: 1080px; margin: 0 auto; padding: 28px 24px 80px; }
+
+    header { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 8px; }
+    .brand { display: inline-flex; align-items: center; gap: 10px; text-decoration: none; }
+    .brand img { height: 34px; width: auto; display: block; }
+    .brand b { font-family: var(--font-d); font-weight: 800; font-size: 1.15rem; letter-spacing: -0.03em; color: #fff; }
+    .brand span { font-size: 0.72rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--cyan); font-weight: 700; margin-left: 4px; }
+    .range { display: inline-flex; gap: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 3px; }
+    .range button {
+      border: none; background: none; color: var(--text-2); font-size: 0.8rem; font-weight: 600;
+      padding: 6px 14px; border-radius: 999px; cursor: pointer; transition: all 150ms;
+    }
+    .range button.active { background: linear-gradient(120deg, var(--cyan), var(--violet)); color: #fff; }
+
+    .sub { color: var(--text-2); font-size: 0.85rem; margin: 4px 0 26px; }
+
+    /* stat tiles */
+    .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 26px; }
+    .tile { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; backdrop-filter: blur(20px); }
+    .tile .n { font-family: var(--font-d); font-weight: 800; font-size: 2rem; letter-spacing: -0.03em; line-height: 1; color: #fff; }
+    .tile .l { font-size: 0.74rem; color: var(--text-2); margin-top: 6px; letter-spacing: 0.02em; }
+    .tile.cyan .n { color: var(--cyan); }
+    .tile.violet .n { color: var(--violet); }
+    .tile.peri .n { color: var(--peri); }
+
+    .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 22px; backdrop-filter: blur(20px); margin-bottom: 18px; }
+    .panel h3 { font-family: var(--font-d); font-weight: 800; font-size: 0.95rem; letter-spacing: -0.02em; margin-bottom: 4px; }
+    .panel .hint { font-size: 0.76rem; color: var(--muted); margin-bottom: 18px; }
+
+    /* daily bar chart */
+    .chart { display: flex; align-items: flex-end; gap: 6px; height: 180px; }
+    .col { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 6px; justify-content: flex-end; }
+    .bar { width: 100%; max-width: 34px; border-radius: 5px 5px 0 0; background: linear-gradient(to top, var(--violet), var(--cyan)); min-height: 3px; transition: height 500ms cubic-bezier(0.23,1,0.32,1); position: relative; }
+    .bar:hover::after { content: attr(data-v); position: absolute; top: -22px; left: 50%; transform: translateX(-50%); background: #000; color: #fff; font-size: 0.68rem; padding: 2px 6px; border-radius: 5px; white-space: nowrap; }
+    .col small { font-size: 0.6rem; color: var(--muted); white-space: nowrap; }
+
+    .cols2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+    .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 0; border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 0.85rem; }
+    .row:last-child { border-bottom: none; }
+    .row .k { color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .row .v { font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+    .empty { color: var(--muted); font-size: 0.84rem; padding: 8px 0; }
+
+    /* locked / loading */
+    .center { min-height: 70vh; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 14px; }
+    .center h2 { font-family: var(--font-d); font-weight: 800; font-size: 1.6rem; letter-spacing: -0.03em; }
+    .center p { color: var(--text-2); font-size: 0.9rem; max-width: 42ch; line-height: 1.6; }
+    .center a { color: var(--cyan); }
+    .hidden { display: none !important; }
+    @media (max-width: 620px) { .cols2 { grid-template-columns: 1fr; } .col small { display: none; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <a class="brand" href="/"><img src="/assets/pathascent-mark.png" alt="" /><b>PathAscent</b><span>Work Room</span></a>
+      <div class="range" id="range">
+        <button data-r="7" class="active">7 days</button>
+        <button data-r="30">30 days</button>
+        <button data-r="90">90 days</button>
+      </div>
+    </header>
+
+    <!-- Loading -->
+    <div class="center" id="loading"><p>Loading your analytics…</p></div>
+
+    <!-- Locked -->
+    <div class="center hidden" id="locked">
+      <h2>Restricted</h2>
+      <p id="lockedMsg">This is the owner-only work room. Sign in with an admin account to view analytics.</p>
+      <p><a href="/">← Back to site</a> · <a href="#" id="signinLink">Sign in</a></p>
+    </div>
+
+    <!-- Dashboard -->
+    <main class="hidden" id="dash">
+      <p class="sub" id="rangeLabel"></p>
+      <div class="tiles" id="tiles"></div>
+
+      <div class="panel">
+        <h3>Traffic</h3>
+        <p class="hint" id="chartHint">Pageviews per day</p>
+        <div class="chart" id="chart"></div>
+      </div>
+
+      <div class="cols2">
+        <div class="panel">
+          <h3>Top pages</h3>
+          <p class="hint">Most-visited paths</p>
+          <div id="topPaths"></div>
+        </div>
+        <div class="panel">
+          <h3>Events</h3>
+          <p class="hint">All tracked activity</p>
+          <div id="byType"></div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    var TOKEN = localStorage.getItem("hd_token");
+    var range = 7;
+
+    function el(id) { return document.getElementById(id); }
+    function show(id) { el(id).classList.remove("hidden"); }
+    function hide(id) { el(id).classList.add("hidden"); }
+
+    function fmt(n) { return (n == null ? 0 : n).toLocaleString(); }
+
+    async function load() {
+      if (!TOKEN) return locked("You’re not signed in. Sign in with the admin account, then reopen this page.");
+      show("loading"); hide("dash"); hide("locked");
+      try {
+        var res = await fetch("/api/admin/analytics?range=" + range, {
+          headers: { "Authorization": "Bearer " + TOKEN }
+        });
+        if (res.status === 401 || res.status === 403) {
+          return locked("This account doesn’t have work-room access. Ask the owner to add your email to ADMIN_EMAILS.");
+        }
+        if (!res.ok) throw new Error("Request failed (" + res.status + ")");
+        render(await res.json());
+      } catch (e) {
+        locked("Couldn’t load analytics: " + e.message);
+      }
+    }
+
+    function locked(msg) {
+      hide("loading"); hide("dash"); show("locked");
+      el("lockedMsg").textContent = msg;
+    }
+
+    var TILES = [
+      { k: "visitors",  l: "Unique visitors", c: "cyan" },
+      { k: "pageviews", l: "Pageviews",       c: "" },
+      { k: "signups",   l: "Signups",         c: "violet" },
+      { k: "analyses",  l: "Resume analyses", c: "peri" },
+      { k: "ranks",     l: "Recruiter ranks", c: "peri" },
+      { k: "tailors",   l: "Resume tailors",  c: "" },
+      { k: "optins",    l: "Pool opt-ins",    c: "violet" },
+      { k: "logins",    l: "Logins",          c: "" }
+    ];
+
+    function render(data) {
+      hide("loading"); hide("locked"); show("dash");
+      el("rangeLabel").textContent = "Last " + data.sinceDays + " days · updated " + new Date().toLocaleString();
+
+      var t = data.totals || {};
+      el("tiles").innerHTML = TILES.map(function (x) {
+        return '<div class="tile ' + x.c + '"><div class="n">' + fmt(t[x.k]) + '</div><div class="l">' + x.l + '</div></div>';
+      }).join("");
+
+      // chart
+      var daily = data.daily || [];
+      var chart = el("chart");
+      if (!daily.length) { chart.innerHTML = '<p class="empty">No traffic yet in this window.</p>'; }
+      else {
+        var max = Math.max.apply(null, daily.map(function (d) { return d.views; }).concat([1]));
+        chart.innerHTML = daily.map(function (d) {
+          var h = Math.max(3, Math.round((d.views / max) * 150));
+          var label = d.day.slice(5); // MM-DD
+          return '<div class="col"><div class="bar" style="height:' + h + 'px" data-v="' + d.views + ' views · ' + d.visitors + ' visitors"></div><small>' + label + '</small></div>';
+        }).join("");
+      }
+
+      // top paths
+      var tp = data.topPaths || [];
+      el("topPaths").innerHTML = tp.length
+        ? tp.map(function (p) { return '<div class="row"><span class="k">' + (p.path || "/") + '</span><span class="v">' + fmt(p.count) + '</span></div>'; }).join("")
+        : '<p class="empty">No pageviews yet.</p>';
+
+      // events by type
+      var bt = data.byType || [];
+      el("byType").innerHTML = bt.length
+        ? bt.map(function (e) { return '<div class="row"><span class="k">' + e.type + '</span><span class="v">' + fmt(e.count) + '</span></div>'; }).join("")
+        : '<p class="empty">No events yet.</p>';
+    }
+
+    // range toggle
+    el("range").addEventListener("click", function (e) {
+      var b = e.target.closest("button"); if (!b) return;
+      range = parseInt(b.getAttribute("data-r"));
+      Array.prototype.forEach.call(el("range").children, function (c) { c.classList.toggle("active", c === b); });
+      load();
+    });
+    el("signinLink").addEventListener("click", function (e) { e.preventDefault(); location.href = "/"; });
+
+    load();
+  </script>
+</body>
+</html>

@@ -115,6 +115,18 @@ await pool.query(`
     created_at TIMESTAMPTZ DEFAULT NOW()
   );
 
+  CREATE TABLE IF NOT EXISTS events (
+    id SERIAL PRIMARY KEY,
+    type TEXT NOT NULL,
+    path TEXT,
+    session_id TEXT,
+    user_id INTEGER,
+    meta TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  );
+  CREATE INDEX IF NOT EXISTS idx_events_created ON events(created_at);
+  CREATE INDEX IF NOT EXISTS idx_events_type ON events(type);
+
   -- Idempotent migration for tables created before job_query/top_score existed
   ALTER TABLE resume_snapshots ADD COLUMN IF NOT EXISTS job_query TEXT;
   ALTER TABLE resume_snapshots ADD COLUMN IF NOT EXISTS top_score INTEGER;
@@ -516,6 +528,73 @@ export async function saveTalentPoolCandidate({ name, currentTitle, location, co
     ]
   );
   return result.rows[0].id;
+}
+
+// ─────────────────────────────────────────────
+//  ANALYTICS EVENTS
+// ─────────────────────────────────────────────
+
+// Fire-and-forget event log. Analytics must NEVER break the app, so all errors are swallowed.
+export async function recordEvent({ type, path = null, sessionId = null, userId = null, meta = null }) {
+  if (!type) return;
+  try {
+    await pool.query(
+      `INSERT INTO events (type, path, session_id, user_id, meta) VALUES ($1, $2, $3, $4, $5)`,
+      [
+        String(type).slice(0, 60),
+        path ? String(path).slice(0, 300) : null,
+        sessionId ? String(sessionId).slice(0, 80) : null,
+        userId ?? null,
+        meta ? JSON.stringify(meta).slice(0, 2000) : null,
+      ]
+    );
+  } catch { /* swallow — never let telemetry throw */ }
+}
+
+export async function getAnalytics({ sinceDays = 7 } = {}) {
+  const days = Math.min(Math.max(parseInt(sinceDays) || 7, 1), 365);
+  const since = `NOW() - ($1 || ' days')::interval`;
+
+  const [totals, byType, daily, topPaths] = await Promise.all([
+    pool.query(`
+      SELECT
+        COUNT(*) FILTER (WHERE type = 'pageview')::int              AS pageviews,
+        COUNT(DISTINCT session_id) FILTER (WHERE type = 'pageview')::int AS visitors,
+        COUNT(*) FILTER (WHERE type = 'signup')::int               AS signups,
+        COUNT(*) FILTER (WHERE type = 'login')::int                AS logins,
+        COUNT(*) FILTER (WHERE type = 'analyze')::int              AS analyses,
+        COUNT(*) FILTER (WHERE type = 'rank')::int                 AS ranks,
+        COUNT(*) FILTER (WHERE type = 'tailor')::int               AS tailors,
+        COUNT(*) FILTER (WHERE type = 'talent_pool_optin')::int    AS optins
+      FROM events WHERE created_at >= ${since}
+    `, [String(days)]),
+    pool.query(`
+      SELECT type, COUNT(*)::int AS count
+      FROM events WHERE created_at >= ${since}
+      GROUP BY type ORDER BY count DESC
+    `, [String(days)]),
+    pool.query(`
+      SELECT to_char(date_trunc('day', created_at), 'YYYY-MM-DD') AS day,
+             COUNT(*) FILTER (WHERE type = 'pageview')::int AS views,
+             COUNT(DISTINCT session_id) FILTER (WHERE type = 'pageview')::int AS visitors
+      FROM events WHERE created_at >= ${since}
+      GROUP BY 1 ORDER BY 1
+    `, [String(days)]),
+    pool.query(`
+      SELECT path, COUNT(*)::int AS count
+      FROM events
+      WHERE type = 'pageview' AND path IS NOT NULL AND created_at >= ${since}
+      GROUP BY path ORDER BY count DESC LIMIT 12
+    `, [String(days)]),
+  ]);
+
+  return {
+    sinceDays: days,
+    totals: totals.rows[0],
+    byType: byType.rows,
+    daily: daily.rows,
+    topPaths: topPaths.rows,
+  };
 }
 
 export default pool;

@@ -11,7 +11,8 @@ import {
   updateCandidateStatus, recordHiringSignal, getHiringSignals,
   createUser, loginUser, getUserFromToken, deleteSession,
   saveApplication, getApplications, updateApplicationStatus, deleteApplication,
-  saveResumeSnapshot, getResumeSnapshots, getTalentPool, saveTalentPoolCandidate
+  saveResumeSnapshot, getResumeSnapshots, getTalentPool, saveTalentPoolCandidate,
+  recordEvent, getAnalytics
 } from "./db.js";
 import rateLimit from "express-rate-limit";
 
@@ -53,6 +54,17 @@ app.use("/api/integrations",         lightLimiter);
 app.use("/api/auth",                 lightLimiter);
 app.use("/api/user",                 lightLimiter);
 app.use("/api/recruiter/talent-pool", lightLimiter);
+app.use("/api/admin",                lightLimiter);
+
+// Analytics beacon — generous limit since one visit fires several pageviews.
+const trackLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 300,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { ok: false }
+});
+app.use("/api/track", trackLimiter);
 
 // ── Auth middleware ───────────────────────────────────────────────────────────
 async function requireAuth(req, res, next) {
@@ -80,6 +92,19 @@ async function resolveUser(req) {
   const token = (req.headers.authorization || "").replace("Bearer ", "").trim();
   if (!token) return null;
   try { return await getUserFromToken(token); } catch { return null; }
+}
+
+// Owner-only gate for the analytics work room. Set ADMIN_EMAILS (comma-separated)
+// to the email(s) that should have access; sign in with that account.
+const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || "")
+  .toLowerCase().split(",").map(s => s.trim()).filter(Boolean);
+
+function requireAdmin(req, res, next) {
+  const email = (req.user?.email || "").toLowerCase();
+  if (!email || !ADMIN_EMAILS.includes(email)) {
+    return res.status(403).json({ error: "Not authorized." });
+  }
+  next();
 }
 
 // Home page — must be before express.static so it intercepts "/"
@@ -352,11 +377,13 @@ app.post("/api/analyze", upload.single("resumeFile"), async (req, res) => {
           resumeText,
           avgScore: averageScore
         });
+        recordEvent({ type: "talent_pool_optin" });
       } catch (err) {
         console.error("Talent pool opt-in save (non-fatal):", err.message);
       }
     }
 
+    recordEvent({ type: "analyze", meta: { jobs: jobs.length, avgScore: averageScore } });
     res.json({
       resumeText,
       resumeSummary: analysis.resumeSummary,
@@ -444,6 +471,7 @@ Include 2–3 bullets per section for the 2 most relevant experience sections on
     if (!jsonMatch) return res.status(500).json({ error: "AI returned an unparseable response. Please try again." });
 
     const result = JSON.parse(jsonMatch[0]);
+    recordEvent({ type: "tailor" });
     res.json(result);
   } catch (err) {
     console.error("Tailor error:", err);
@@ -653,6 +681,7 @@ app.post("/api/recruiter/rank", upload.array("resumeFiles", 100), async (req, re
     // uploaded resumes must not leak into a shared pool without a consenting owner.
     let candidateIds = [];
     const owner = await resolveUser(req);
+    recordEvent({ type: "rank", userId: owner?.id ?? null, meta: { candidates: capped.length } });
     if (owner?.role === "recruiter") {
       try {
         ({ candidateIds } = await saveJobAndCandidates(job, ranked, capped, owner.id));
@@ -865,6 +894,7 @@ app.post("/api/auth/register", express.json(), async (req, res) => {
     if (!["applicant", "recruiter"].includes(role)) return res.status(400).json({ error: "Role must be applicant or recruiter." });
     const user = await createUser(email, password, role);
     const { token } = await loginUser(email, password);
+    recordEvent({ type: "signup", userId: user.id, meta: { role } });
     res.json({ token, user });
   } catch (err) {
     if (err.message === "EMAIL_TAKEN") return res.status(409).json({ error: "An account with that email already exists." });
@@ -877,6 +907,7 @@ app.post("/api/auth/login", express.json(), async (req, res) => {
     const { email, password } = req.body;
     if (!email || !password) return res.status(400).json({ error: "Email and password required." });
     const result = await loginUser(email, password);
+    recordEvent({ type: "login", userId: result.user.id });
     res.json(result);
   } catch (err) {
     if (err.message === "INVALID_CREDENTIALS") return res.status(401).json({ error: "Incorrect email or password." });
@@ -1004,6 +1035,36 @@ app.post("/api/integrations/webhook", async (req, res) => {
   } catch (err) {
     res.status(500).json({ success: false, error: err.message || "Webhook delivery failed." });
   }
+});
+
+// ─────────────────────────────────────────────
+//  ANALYTICS  (public beacon + owner-only dashboard API)
+// ─────────────────────────────────────────────
+
+// Client beacon — records anonymous pageviews. No auth; only whitelisted types allowed.
+const CLIENT_EVENT_TYPES = new Set(["pageview"]);
+app.post("/api/track", express.json({ limit: "8kb" }), (req, res) => {
+  const { type, path, sessionId, meta } = req.body || {};
+  if (CLIENT_EVENT_TYPES.has(type)) {
+    const user = null; // pageviews stay anonymous even for logged-in users
+    recordEvent({ type, path, sessionId, userId: user, meta });
+  }
+  res.status(204).end();
+});
+
+// Owner-only analytics for the work room.
+app.get("/api/admin/analytics", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const data = await getAnalytics({ sinceDays: req.query.range || 7 });
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Lightweight check so the work-room page can tell if the current user has access.
+app.get("/api/admin/check", requireAuth, requireAdmin, (req, res) => {
+  res.json({ ok: true, email: req.user.email });
 });
 
 // ─────────────────────────────────────────────
