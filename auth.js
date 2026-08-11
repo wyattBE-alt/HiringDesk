@@ -278,6 +278,7 @@ function buildModal() {
         </p>
         <button type="submit" class="hd-auth-btn" id="hd-auth-submit">Sign In</button>
         <p class="hd-auth-error" id="hd-auth-error"></p>
+        <a id="hd-forgot-link" style="display:block;text-align:center;margin-top:12px;font-size:0.8rem;color:#8fb6ff;cursor:pointer;text-decoration:none">Forgot password?</a>
       </form>
     </div>
   `;
@@ -293,8 +294,36 @@ function buildModal() {
 
   // Form submission
   _modalEl.querySelector("#hd-auth-form").addEventListener("submit", handleSubmit);
+  _modalEl.querySelector("#hd-forgot-link").addEventListener("click", handleForgot);
 
   document.body.appendChild(_modalEl);
+}
+
+async function handleForgot() {
+  const emailEl = _modalEl.querySelector("#hd-email");
+  const email = emailEl.value.trim();
+  const errEl = _modalEl.querySelector("#hd-auth-error");
+  if (!email) {
+    errEl.style.color = "#f59e0b";
+    errEl.textContent = "Enter your email above, then click Forgot password.";
+    emailEl.focus();
+    return;
+  }
+  errEl.style.color = "#8a96b8";
+  errEl.textContent = "Sending reset link…";
+  try {
+    const res = await fetch("/api/auth/forgot", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email })
+    });
+    const data = await res.json().catch(() => ({}));
+    errEl.style.color = "#22c55e";
+    errEl.textContent = data.message || "If that email has an account, a reset link is on its way.";
+  } catch {
+    errEl.style.color = "#ef4444";
+    errEl.textContent = "Network error. Please try again.";
+  }
 }
 
 function switchTab(tab) {
@@ -309,7 +338,9 @@ function switchTab(tab) {
   _modalEl.querySelector("#hd-free-note").style.display = isRegister ? "block" : "none";
   _modalEl.querySelector("#hd-auth-submit").textContent = isRegister ? "Create Account" : "Sign In";
   _modalEl.querySelector("#hd-password").autocomplete = isRegister ? "new-password" : "current-password";
-  _modalEl.querySelector("#hd-auth-error").textContent = "";
+  _modalEl.querySelector("#hd-forgot-link").style.display = isRegister ? "none" : "block";
+  const err = _modalEl.querySelector("#hd-auth-error");
+  err.textContent = ""; err.style.color = "";
 }
 
 async function handleSubmit(e) {
@@ -320,7 +351,7 @@ async function handleSubmit(e) {
   const errEl = _modalEl.querySelector("#hd-auth-error");
   const btn = _modalEl.querySelector("#hd-auth-submit");
 
-  errEl.textContent = "";
+  errEl.textContent = ""; errEl.style.color = "";
   btn.disabled = true;
   btn.textContent = "Working…";
 

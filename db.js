@@ -115,6 +115,14 @@ await pool.query(`
     created_at TIMESTAMPTZ DEFAULT NOW()
   );
 
+  CREATE TABLE IF NOT EXISTS password_resets (
+    token TEXT PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    expires_at TIMESTAMPTZ NOT NULL,
+    used INTEGER DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  );
+
   CREATE TABLE IF NOT EXISTS events (
     id SERIAL PRIMARY KEY,
     type TEXT NOT NULL,
@@ -340,6 +348,47 @@ export async function getUserFromToken(token) {
 
 export async function deleteSession(token) {
   await pool.query("DELETE FROM user_sessions WHERE token = $1", [token]);
+}
+
+// Create a one-hour password-reset token. Returns { token, email } if the email
+// has an account, else null (caller must NOT reveal which).
+export async function createPasswordReset(email) {
+  const { rows } = await pool.query("SELECT id, email FROM users WHERE email = $1", [email.toLowerCase()]);
+  const user = rows[0];
+  if (!user) return null;
+  const token = generateToken();
+  const expires = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+  await pool.query(
+    "INSERT INTO password_resets (token, user_id, expires_at) VALUES ($1, $2, $3)",
+    [token, user.id, expires]
+  );
+  return { token, email: user.email };
+}
+
+// Consume a valid, unused, unexpired token: set the new password, invalidate the
+// token, and revoke all existing sessions. Returns true on success.
+export async function consumePasswordReset(token, newPassword) {
+  const { rows } = await pool.query(
+    `SELECT user_id FROM password_resets WHERE token = $1 AND used = 0 AND expires_at > NOW()`,
+    [token]
+  );
+  const reset = rows[0];
+  if (!reset) return false;
+  const password_hash = hashPassword(newPassword);
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("UPDATE users SET password_hash = $1 WHERE id = $2", [password_hash, reset.user_id]);
+    await client.query("UPDATE password_resets SET used = 1 WHERE token = $1", [token]);
+    await client.query("DELETE FROM user_sessions WHERE user_id = $1", [reset.user_id]);
+    await client.query("COMMIT");
+  } catch (e) {
+    await client.query("ROLLBACK");
+    throw e;
+  } finally {
+    client.release();
+  }
+  return true;
 }
 
 // ─────────────────────────────────────────────

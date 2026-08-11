@@ -12,7 +12,7 @@ import {
   createUser, loginUser, getUserFromToken, deleteSession,
   saveApplication, getApplications, updateApplicationStatus, deleteApplication,
   saveResumeSnapshot, getResumeSnapshots, getTalentPool, saveTalentPoolCandidate,
-  recordEvent, getAnalytics
+  recordEvent, getAnalytics, createPasswordReset, consumePasswordReset
 } from "./db.js";
 import rateLimit from "express-rate-limit";
 
@@ -105,6 +105,25 @@ function requireAdmin(req, res, next) {
     return res.status(403).json({ error: "Not authorized." });
   }
   next();
+}
+
+function smtpConfigured() {
+  return !!(process.env.SMTP_HOST && process.env.SMTP_USER);
+}
+
+async function sendMail({ to, subject, html }) {
+  const transporter = nodemailer.createTransport({
+    host: process.env.SMTP_HOST,
+    port: parseInt(process.env.SMTP_PORT) || 587,
+    secure: process.env.SMTP_SECURE === "true",
+    auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
+  });
+  await transporter.sendMail({ from: process.env.SMTP_FROM || process.env.SMTP_USER, to, subject, html });
+}
+
+function baseUrl(req) {
+  return process.env.PUBLIC_URL
+    || `${req.headers["x-forwarded-proto"] || req.protocol}://${req.get("host")}`;
 }
 
 // Home page — must be before express.static so it intercepts "/"
@@ -919,6 +938,53 @@ app.post("/api/auth/logout", requireAuth, async (req, res) => {
   const token = (req.headers.authorization || "").replace("Bearer ", "").trim();
   await deleteSession(token);
   res.json({ ok: true });
+});
+
+// Request a password reset. Always returns the same message so it never reveals
+// whether an email has an account. Emails a link when SMTP is configured.
+app.post("/api/auth/forgot", express.json(), async (req, res) => {
+  try {
+    const email = (req.body.email || "").trim();
+    if (!email) return res.status(400).json({ error: "Email is required." });
+
+    const reset = await createPasswordReset(email);
+    if (reset) {
+      const link = `${baseUrl(req)}/reset.html?token=${reset.token}`;
+      if (smtpConfigured()) {
+        try {
+          await sendMail({
+            to: reset.email,
+            subject: "Reset your PathAscent password",
+            html: `<div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:8px">
+              <h2 style="margin:0 0 12px">Reset your password</h2>
+              <p style="color:#333;line-height:1.6">We received a request to reset your PathAscent password. Click below to set a new one. This link expires in 1 hour.</p>
+              <p style="margin:22px 0"><a href="${link}" style="display:inline-block;background:#5b8cff;color:#fff;padding:12px 26px;border-radius:8px;text-decoration:none;font-weight:600">Reset password</a></p>
+              <p style="color:#888;font-size:12px;line-height:1.6">If you didn't request this, you can safely ignore this email — your password won't change.</p>
+            </div>`
+          });
+        } catch (e) { console.error("Reset email send failed:", e.message); }
+      } else {
+        console.log(`[DEV] Password reset link for ${reset.email}: ${link}`);
+      }
+    }
+    res.json({ ok: true, message: "If that email has an account, a reset link is on its way." });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Complete a password reset with a valid token.
+app.post("/api/auth/reset", express.json(), async (req, res) => {
+  try {
+    const { token, password } = req.body || {};
+    if (!token || !password) return res.status(400).json({ error: "Token and new password are required." });
+    if (password.length < 8) return res.status(400).json({ error: "Password must be at least 8 characters." });
+    const ok = await consumePasswordReset(token, password);
+    if (!ok) return res.status(400).json({ error: "This reset link is invalid or has expired. Please request a new one." });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.get("/api/auth/me", requireAuth, (req, res) => {

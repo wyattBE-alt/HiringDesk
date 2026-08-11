@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex" />
+  <title>Reset password — PathAscent</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root { --cyan:#35d6f0; --violet:#8b6cff; --peri:#5b8cff; --text:#eef0f8; --text-2:#8a96b8; --muted:#48506a; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', system-ui, sans-serif; background: #05070f; color: var(--text);
+      min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; overflow: hidden;
+    }
+    body::before, body::after {
+      content: ''; position: fixed; width: 480px; height: 480px; border-radius: 50%; filter: blur(90px); opacity: 0.5; z-index: 0;
+    }
+    body::before { background: radial-gradient(circle, rgba(53,214,240,0.45), transparent 60%); top: -180px; left: -140px; }
+    body::after  { background: radial-gradient(circle, rgba(139,108,255,0.42), transparent 60%); bottom: -180px; right: -140px; }
+    .card {
+      position: relative; z-index: 1; width: 100%; max-width: 400px;
+      background: rgba(10,13,24,0.72); border: 1px solid rgba(255,255,255,0.09);
+      border-radius: 18px; padding: 32px 28px; backdrop-filter: blur(24px);
+    }
+    .logo { display: inline-flex; align-items: center; gap: 8px; margin-bottom: 18px; }
+    .logo img { height: 22px; width: auto; display: block; filter: drop-shadow(0 0 6px rgba(111,139,255,0.5)); }
+    .logo span { font-size: 0.65rem; letter-spacing: 0.18em; text-transform: uppercase; color: #8fb6ff; font-weight: 700; }
+    h1 { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 1.6rem; letter-spacing: -0.03em; margin-bottom: 4px; }
+    .sub { color: var(--text-2); font-size: 0.88rem; margin-bottom: 22px; line-height: 1.5; }
+    label { display: block; font-size: 0.8rem; font-weight: 600; margin: 14px 0 6px; }
+    input {
+      width: 100%; padding: 12px 14px; border-radius: 10px; font-size: 0.92rem;
+      background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12); color: var(--text); outline: none;
+    }
+    input:focus { border-color: rgba(111,139,255,0.6); box-shadow: 0 0 0 3px rgba(111,139,255,0.15); }
+    button {
+      width: 100%; margin-top: 20px; padding: 12px; border: none; border-radius: 10px;
+      background: linear-gradient(120deg, #35d6f0, #6f8bff 52%, #8b6cff); color: #fff;
+      font-size: 0.92rem; font-weight: 700; cursor: pointer; box-shadow: 0 0 22px rgba(111,139,255,0.3);
+      transition: filter 150ms;
+    }
+    button:hover { filter: brightness(1.08); }
+    button:disabled { opacity: 0.55; cursor: not-allowed; }
+    .msg { font-size: 0.84rem; margin-top: 14px; min-height: 18px; line-height: 1.5; }
+    .msg.err { color: #ef4444; }
+    .msg.ok { color: #22c55e; }
+    a { color: var(--cyan); text-decoration: none; }
+    .foot { margin-top: 18px; font-size: 0.82rem; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo"><img src="/assets/pathascent-mark.png" alt="" /><span>PathAscent</span></div>
+    <h1>Set a new password</h1>
+    <p class="sub" id="sub">Choose a strong password you don't use anywhere else.</p>
+
+    <form id="form">
+      <label for="pw">New password</label>
+      <input id="pw" type="password" autocomplete="new-password" placeholder="At least 8 characters" />
+      <label for="pw2">Confirm password</label>
+      <input id="pw2" type="password" autocomplete="new-password" placeholder="Re-enter password" />
+      <button type="submit" id="btn">Update password</button>
+      <p class="msg" id="msg"></p>
+    </form>
+    <p class="foot"><a href="/">← Back to PathAscent</a></p>
+  </div>
+
+  <script>
+    var token = new URLSearchParams(location.search).get("token");
+    var form = document.getElementById("form");
+    var msg = document.getElementById("msg");
+    var btn = document.getElementById("btn");
+
+    if (!token) {
+      form.style.display = "none";
+      document.getElementById("sub").textContent = "This reset link is missing its token. Request a new one from the sign-in screen.";
+    }
+
+    function setMsg(text, kind) { msg.textContent = text; msg.className = "msg " + (kind || ""); }
+
+    form.addEventListener("submit", async function (e) {
+      e.preventDefault();
+      var pw = document.getElementById("pw").value;
+      var pw2 = document.getElementById("pw2").value;
+      if (pw.length < 8) return setMsg("Password must be at least 8 characters.", "err");
+      if (pw !== pw2) return setMsg("Passwords don't match.", "err");
+      btn.disabled = true; setMsg("Updating…", "");
+      try {
+        var res = await fetch("/api/auth/reset", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token: token, password: pw })
+        });
+        var data = await res.json();
+        if (!res.ok) { btn.disabled = false; return setMsg(data.error || "Something went wrong.", "err"); }
+        setMsg("Password updated. You can now sign in with your new password.", "ok");
+        form.querySelector("button").textContent = "Go to sign in";
+        btn.disabled = false;
+        btn.type = "button";
+        btn.onclick = function () { location.href = "/"; };
+      } catch (err) {
+        btn.disabled = false; setMsg("Network error. Please try again.", "err");
+      }
+    });
+  </script>
+</body>
+</html>
