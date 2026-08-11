@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>HiringDesk — AI Hiring Intelligence</title>
+  <title>PathAscent — AI Hiring Intelligence</title>
   <link rel="manifest" href="/manifest.json" />
-  <meta name="theme-color" content="#000000" />
+  <meta name="theme-color" content="#05070f" />
   <meta name="description" content="AI-powered resume matching and candidate ranking. Built for both sides of the hire." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -14,7 +14,7 @@
   <style>
     /* ── Tokens ─────────────────────────────────────────── */
     :root {
-      --bg:        #000;
+      --bg:        #03050b;
       --surface:   rgba(8, 10, 20, 0.72);
       --surface-2: rgba(12, 14, 26, 0.65);
       --surface-3: rgba(20, 22, 38, 0.8);
@@ -23,9 +23,15 @@
       --muted:     #404860;
       --line:      rgba(255,255,255,0.07);
       --line-strong: rgba(255,255,255,0.11);
-      --blue:      #2563eb;
-      --blue-lt:   #60a5fa;
-      --blue-dim:  rgba(37,99,235,0.14);
+      --blue:      #5b8cff;
+      --blue-lt:   #8fb6ff;
+      --blue-dim:  rgba(91,140,255,0.14);
+      --cyan:      #35d6f0;
+      --violet:    #8b6cff;
+      --grad:      linear-gradient(120deg, #35d6f0 0%, #6f8bff 52%, #8b6cff 100%);
+      --grad-soft: linear-gradient(120deg, rgba(53,214,240,0.16), rgba(139,108,255,0.16));
+      --ring:      rgba(111,139,255,0.55);
+      --glow-brand:0 0 30px rgba(111,139,255,0.32);
       --ease-out:  cubic-bezier(0.23, 1, 0.32, 1);
       --font-d:    'Syne', system-ui, sans-serif;
       --font-b:    'Inter', system-ui, sans-serif;
@@ -67,8 +73,8 @@
       inset: 0;
       z-index: 0;
       overflow: hidden;
-      /* Heavy blur blends all orbs into a fluid mesh */
-      filter: blur(90px);
+      /* Blur blends orbs into a fluid mesh — lighter so the neon reads */
+      filter: blur(72px) saturate(1.35);
       will-change: filter;
     }
 
@@ -80,9 +86,9 @@
 
     /* Large slow primary blue — top-left anchor */
     .orb-1 {
-      width: 1100px;
-      height: 1100px;
-      background: radial-gradient(circle at 40% 40%, rgba(37,99,235,0.55) 0%, transparent 65%);
+      width: 720px;
+      height: 720px;
+      background: radial-gradient(circle at 40% 40%, rgba(34,225,255,0.66) 0%, transparent 55%);
       top: -300px;
       left: -280px;
       animation: orb-drift-1 28s ease-in-out infinite alternate;
@@ -90,9 +96,9 @@
 
     /* Purple/indigo — top-right energy */
     .orb-2 {
-      width: 800px;
-      height: 800px;
-      background: radial-gradient(circle at 60% 40%, rgba(109,40,217,0.45) 0%, transparent 65%);
+      width: 620px;
+      height: 620px;
+      background: radial-gradient(circle at 60% 40%, rgba(150,80,255,0.64) 0%, transparent 55%);
       top: -100px;
       right: -180px;
       animation: orb-drift-2 34s ease-in-out infinite alternate;
@@ -102,7 +108,7 @@
     .orb-3 {
       width: 600px;
       height: 600px;
-      background: radial-gradient(circle at 50% 50%, rgba(14,165,233,0.3) 0%, transparent 65%);
+      background: radial-gradient(circle at 50% 50%, rgba(80,215,255,0.16) 0%, transparent 60%);
       top: 40%;
       left: 35%;
       animation: orb-drift-3 22s ease-in-out infinite alternate;
@@ -110,9 +116,9 @@
 
     /* Deep indigo — bottom-left weight */
     .orb-4 {
-      width: 900px;
-      height: 900px;
-      background: radial-gradient(circle at 45% 55%, rgba(67,56,202,0.4) 0%, transparent 65%);
+      width: 680px;
+      height: 680px;
+      background: radial-gradient(circle at 45% 55%, rgba(124,70,245,0.54) 0%, transparent 55%);
       bottom: -250px;
       left: -150px;
       animation: orb-drift-4 38s ease-in-out infinite alternate;
@@ -120,9 +126,9 @@
 
     /* Electric blue — bottom-right highlight */
     .orb-5 {
-      width: 700px;
-      height: 700px;
-      background: radial-gradient(circle at 55% 45%, rgba(59,130,246,0.35) 0%, transparent 65%);
+      width: 560px;
+      height: 560px;
+      background: radial-gradient(circle at 55% 45%, rgba(96,120,255,0.50) 0%, transparent 55%);
       bottom: -100px;
       right: -100px;
       animation: orb-drift-5 26s ease-in-out infinite alternate;
@@ -175,11 +181,24 @@
     }
 
     .nav-logo {
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      text-decoration: none;
+    }
+    .brand-mark {
+      height: 40px;
+      width: auto;
+      flex: none;
+      display: block;
+    }
+    .nav-logo-text {
       font-family: var(--font-d);
       font-weight: 800;
       font-size: 1.2rem;
-      letter-spacing: -0.04em;
-      color: var(--text);
+      letter-spacing: -0.03em;
+      color: #fff;
+      text-shadow: 0 0 18px rgba(90,180,255,0.35);
     }
 
     .nav-links {
@@ -207,9 +226,10 @@
     }
 
     .nav-link-primary {
-      background: var(--blue);
+      background: var(--grad);
       color: #fff;
       font-weight: 600;
+      box-shadow: var(--glow-brand);
     }
 
     @media (hover: hover) and (pointer: fine) {
@@ -246,12 +266,13 @@
       font-size: 0.72rem;
       letter-spacing: 0.2em;
       text-transform: uppercase;
-      color: var(--blue-lt);
+      color: #7fe9fb;
       font-weight: 600;
       padding: 6px 14px;
-      border: 1px solid rgba(37,99,235,0.3);
+      border: 1px solid rgba(60,214,240,0.4);
       border-radius: 999px;
-      background: var(--blue-dim);
+      background: rgba(53,214,240,0.08);
+      box-shadow: 0 0 22px rgba(53,214,240,0.22), inset 0 0 16px rgba(139,108,255,0.08);
       animation: fade-up 500ms var(--ease-out) 60ms both;
     }
 
@@ -284,13 +305,14 @@
     /* Solid accent — no gradient text (impeccable ban) */
     .hero-heading em {
       font-style: normal;
-      color: var(--blue-lt);
+      color: #5fe4ff;
+      text-shadow: 0 0 32px rgba(53,214,240,0.55), 0 0 8px rgba(53,214,240,0.35);
     }
 
     .hero-sub {
       font-size: 1rem;
       line-height: 1.75;
-      color: var(--text-2);
+      color: #cdd6ee;
       max-width: 50ch;
       text-wrap: pretty;
       animation: fade-up 600ms var(--ease-out) 200ms both;
@@ -807,7 +829,10 @@
   <div class="page">
     <!-- ── Nav ─────────────────────────────────────────────── -->
     <nav class="nav">
-      <span class="nav-logo">HiringDesk</span>
+      <a class="nav-logo" href="/" aria-label="PathAscent home">
+        <img class="brand-mark" src="/assets/pathascent-mark.png" alt="" aria-hidden="true" />
+        <span class="nav-logo-text">PathAscent</span>
+      </a>
       <div class="nav-links" id="navLinks">
         <a href="/index.html" class="nav-link">Job Seekers</a>
         <a href="/recruiter.html" class="nav-link">Recruiters</a>
@@ -936,7 +961,7 @@
       <section class="download">
         <div class="download-header">
           <h2>Download the desktop app</h2>
-          <p>Full HiringDesk experience — runs locally, no browser required, works offline.</p>
+          <p>The full PathAscent experience, running locally. No browser required, works offline.</p>
         </div>
         <div class="download-buttons" id="downloadButtons">
 
@@ -1003,7 +1028,7 @@
 
     <!-- ── Footer ──────────────────────────────────────────── -->
     <footer class="footer">
-      <span class="footer-copy">© 2025 HiringDesk</span>
+      <span class="footer-copy">© 2026 PathAscent</span>
       <nav class="footer-links" aria-label="Footer navigation">
         <a href="/index.html" class="footer-link">Job Seekers</a>
         <a href="/recruiter.html" class="footer-link">Recruiters</a>

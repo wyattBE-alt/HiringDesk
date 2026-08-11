@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>My Dashboard — HiringDesk</title>
+  <title>My Dashboard — PathAscent</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -20,7 +20,8 @@
       position: sticky; top: 0; z-index: 10;
     }
     .dash-nav-left { display: flex; align-items: center; gap: 16px; }
-    .dash-logo { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 1.1rem; letter-spacing: -0.04em; color: #eef0f8; text-decoration: none; }
+    .dash-logo { display: inline-flex; align-items: center; gap: 8px; font-family: 'Syne', sans-serif; font-weight: 800; font-size: 1.1rem; letter-spacing: -0.03em; color: #eef0f8; text-decoration: none; }
+    .dash-logo svg { filter: drop-shadow(0 0 6px rgba(111,139,255,0.45)); }
     .dash-back { font-size: 0.8rem; color: #8a96b8; text-decoration: none; display: flex; align-items: center; gap: 5px; }
     .dash-back:hover { color: #eef0f8; }
     .dash-nav-right { display: flex; align-items: center; gap: 12px; }
@@ -39,7 +40,7 @@
     .dash-gate p { font-size: 0.9rem; color: #8a96b8; max-width: 36ch; line-height: 1.6; }
     .dash-gate-btn {
       padding: 12px 28px; border-radius: 10px; border: none;
-      background: #2563eb; color: #fff; font-size: 0.92rem; font-weight: 700; cursor: pointer;
+      background: #5b8cff; color: #fff; font-size: 0.92rem; font-weight: 700; cursor: pointer;
     }
 
     /* Section heading */
@@ -62,7 +63,7 @@
     .score-bar-wrap { display: flex; flex-direction: column; align-items: center; gap: 6px; flex: 1; min-width: 0; }
     .score-bar {
       width: 100%; border-radius: 6px 6px 0 0;
-      background: linear-gradient(to top, #1d4ed8, #60a5fa);
+      background: linear-gradient(to top, #4272e6, #8fb6ff);
       transition: height 500ms cubic-bezier(0.23,1,0.32,1);
       position: relative; min-height: 4px;
     }
@@ -81,7 +82,7 @@
     .skills-progression { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
     .skill-chip {
       font-size: 0.75rem; font-weight: 600; padding: 4px 11px; border-radius: 999px;
-      background: rgba(37,99,235,0.12); color: #60a5fa; border: 1px solid rgba(37,99,235,0.2);
+      background: rgba(91,140,255,0.12); color: #8fb6ff; border: 1px solid rgba(91,140,255,0.2);
     }
 
     /* Applications tracker */
@@ -97,7 +98,7 @@
     .app-meta { display: flex; align-items: center; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
     .app-score-pill {
       font-size: 0.72rem; font-weight: 700; padding: 2px 8px; border-radius: 999px;
-      background: rgba(37,99,235,0.12); color: #60a5fa; border: 1px solid rgba(37,99,235,0.2);
+      background: rgba(91,140,255,0.12); color: #8fb6ff; border: 1px solid rgba(91,140,255,0.2);
     }
     .app-date { font-size: 0.72rem; color: #48506a; }
     .app-skills { font-size: 0.72rem; color: #6b7280; }
@@ -108,7 +109,7 @@
       border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.05);
       color: #eef0f8; cursor: pointer; outline: none;
     }
-    .app-status-select:focus { border-color: rgba(37,99,235,0.5); }
+    .app-status-select:focus { border-color: rgba(91,140,255,0.5); }
     .app-status-select.status-interview { border-color: rgba(245,158,11,0.4); color: #f59e0b; background: rgba(245,158,11,0.08); }
     .app-status-select.status-accepted { border-color: rgba(34,197,94,0.4); color: #22c55e; background: rgba(34,197,94,0.08); }
     .app-status-select.status-rejected { border-color: rgba(239,68,68,0.3); color: #ef4444; background: rgba(239,68,68,0.07); }
@@ -117,7 +118,7 @@
     }
     .app-delete-btn:hover { color: #ef4444; }
 
-    .app-apply-link { font-size: 0.72rem; color: #60a5fa; text-decoration: none; }
+    .app-apply-link { font-size: 0.72rem; color: #8fb6ff; text-decoration: none; }
     .app-apply-link:hover { text-decoration: underline; }
 
     /* Stats row */
@@ -126,14 +127,14 @@
       background: rgba(6,8,18,0.7); border: 1px solid rgba(255,255,255,0.08);
       border-radius: 12px; padding: 18px 20px;
     }
-    .stat-card-num { font-family: 'Syne', sans-serif; font-size: 2rem; font-weight: 800; letter-spacing: -0.03em; color: #60a5fa; line-height: 1; }
+    .stat-card-num { font-family: 'Syne', sans-serif; font-size: 2rem; font-weight: 800; letter-spacing: -0.03em; color: #8fb6ff; line-height: 1; }
     .stat-card-label { font-size: 0.76rem; color: #8a96b8; margin-top: 4px; }
     .stat-card.green .stat-card-num { color: #22c55e; }
     .stat-card.amber .stat-card-num { color: #f59e0b; }
     .stat-card.rose .stat-card-num { color: #ef4444; }
 
     .empty-state { font-size: 0.86rem; color: #48506a; padding: 20px 0; text-align: center; }
-    .go-to-tool-link { font-size: 0.82rem; color: #60a5fa; text-decoration: none; }
+    .go-to-tool-link { font-size: 0.82rem; color: #8fb6ff; text-decoration: none; }
     .go-to-tool-link:hover { text-decoration: underline; }
 
     @media (max-width: 640px) {
@@ -152,7 +153,7 @@
   <div class="dash-shell">
     <nav class="dash-nav">
       <div class="dash-nav-left">
-        <a href="/" class="dash-logo">HiringDesk</a>
+        <a href="/" class="dash-logo"><img src="/assets/pathascent-mark.png" alt="" aria-hidden="true" style="height:28px;width:auto;display:block" />PathAscent</a>
         <a href="/index.html" class="dash-back">← Resume Matcher</a>
       </div>
       <div class="dash-nav-right" id="dashNavRight"></div>
@@ -196,7 +197,7 @@
         <div class="dash-section-head">
           <div>
             <h2 class="dash-section-title">Job Applications</h2>
-            <p class="dash-section-sub">Jobs you've logged from HiringDesk analyses.</p>
+            <p class="dash-section-sub">Jobs you've logged from PathAscent analyses.</p>
           </div>
           <a href="/index.html" class="go-to-tool-link">+ Analyze a new role</a>
         </div>

@@ -3,14 +3,14 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>HiringDesk – See Your Real Fit Score</title>
+    <title>PathAscent – See Your Real Fit Score</title>
 
     <!-- PWA -->
     <link rel="manifest" href="/manifest.json" />
     <meta name="theme-color" content="#4f8ef5" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="HiringDesk" />
+    <meta name="apple-mobile-web-app-title" content="PathAscent" />
     <link rel="apple-touch-icon" href="/assets/icon-192.png" />
 
     <!-- SEO -->
@@ -35,7 +35,7 @@
         <a href="/" class="home-btn">Home</a>
         <div class="brand-block">
           <p class="eyebrow">AI Match Engine</p>
-          <h1>HiringDesk</h1>
+          <h1><img class="brand-mark" src="/assets/pathascent-mark.png" alt="" aria-hidden="true" />PathAscent</h1>
           <p class="brand-copy">
             Paste your resume, search a role. We score your fit against live listings, show exactly why, and give you a plan to close any gaps.
           </p>
@@ -96,6 +96,34 @@
               type="text"
               placeholder="e.g. New York, Remote"
             />
+
+            <div style="display:flex; gap:10px; margin-top:12px;">
+              <div style="flex:1; min-width:0;">
+                <label class="field-label" for="datePosted">Date posted</label>
+                <select id="datePosted" class="input-shell">
+                  <option value="all">Any time</option>
+                  <option value="today">Past 24 hours</option>
+                  <option value="3days">Past 3 days</option>
+                  <option value="week">Past week</option>
+                  <option value="month">Past month</option>
+                </select>
+              </div>
+              <div style="flex:1; min-width:0;">
+                <label class="field-label" for="employmentType">Job type</label>
+                <select id="employmentType" class="input-shell">
+                  <option value="">Any type</option>
+                  <option value="FULLTIME">Full-time</option>
+                  <option value="PARTTIME">Part-time</option>
+                  <option value="CONTRACTOR">Contract</option>
+                  <option value="INTERN">Internship</option>
+                </select>
+              </div>
+            </div>
+
+            <label class="opt-in-row" style="margin-top:12px;">
+              <input type="checkbox" id="remoteOnly" />
+              <span class="opt-in-label">Remote jobs only</span>
+            </label>
           </section>
 
           <label class="opt-in-row">
@@ -125,7 +153,7 @@
             <p class="eyebrow">Talent Profile</p>
             <h2>Build a talent ID that travels with every application.</h2>
             <p class="hero-copy">
-              Paste your resume once. HiringDesk maps your real standing against live roles — what you match, what's missing, and AI-rewritten bullets ready to submit for each job.
+              Paste your resume once. PathAscent maps your real standing against live roles — what you match, what's missing, and AI-rewritten bullets ready to submit for each job.
             </p>
           </div>
           <div class="hero-meta hero-steps">

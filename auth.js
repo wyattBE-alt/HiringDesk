@@ -1,4 +1,4 @@
-// ── HiringDesk shared auth module ────────────────────────────────────────────
+// ── PathAscent shared auth module ────────────────────────────────────────────
 // Included by home.html, index.html, recruiter.html, and dashboard pages.
 // Handles: token storage, nav injection, modal (login + register), session init.
 
@@ -75,9 +75,11 @@ function injectModalStyles() {
     .hd-auth-close:hover { background: rgba(255,255,255,0.12); color: #fff; }
 
     .hd-auth-logo {
+      display: inline-flex; align-items: center; gap: 7px;
       font-size: 0.65rem; font-weight: 700; letter-spacing: 0.18em;
-      text-transform: uppercase; color: #60a5fa; margin-bottom: 6px;
+      text-transform: uppercase; color: #8fb6ff; margin-bottom: 8px;
     }
+    .hd-auth-logo svg { filter: drop-shadow(0 0 5px rgba(111,139,255,0.5)); }
     .hd-auth-title {
       font-family: 'Syne', system-ui, sans-serif;
       font-size: 1.7rem; font-weight: 800; letter-spacing: -0.03em;
@@ -112,23 +114,24 @@ function injectModalStyles() {
       outline: none;
     }
     .hd-field input:focus, .hd-field select:focus {
-      border-color: rgba(37,99,235,0.6);
-      box-shadow: 0 0 0 3px rgba(37,99,235,0.15);
+      border-color: rgba(91,140,255,0.6);
+      box-shadow: 0 0 0 3px rgba(91,140,255,0.15);
     }
     .hd-field select option { background: #0a0c1a; }
 
     .hd-auth-free-note {
       font-size: 0.75rem; color: #48506a; margin-bottom: 16px; line-height: 1.5;
     }
-    .hd-auth-free-note strong { color: #60a5fa; }
+    .hd-auth-free-note strong { color: #8fb6ff; }
 
     .hd-auth-btn {
       width: 100%; padding: 12px; border: none; border-radius: 10px;
-      background: #2563eb; color: #fff; font-size: 0.92rem; font-weight: 700;
-      cursor: pointer; transition: background 150ms, transform 100ms;
-      margin-top: 4px;
+      background: linear-gradient(120deg, #35d6f0 0%, #6f8bff 52%, #8b6cff 100%);
+      color: #fff; font-size: 0.92rem; font-weight: 700;
+      cursor: pointer; transition: filter 150ms, transform 100ms;
+      box-shadow: 0 0 22px rgba(111,139,255,0.30); margin-top: 4px;
     }
-    .hd-auth-btn:hover { background: #1d4ed8; }
+    .hd-auth-btn:hover { filter: brightness(1.08); }
     .hd-auth-btn:active { transform: scale(0.98); }
     .hd-auth-btn:disabled { opacity: 0.55; cursor: not-allowed; }
 
@@ -140,7 +143,7 @@ function injectModalStyles() {
       text-align: center; margin-top: 16px;
       font-size: 0.8rem; color: #48506a;
     }
-    .hd-auth-switch a { color: #60a5fa; cursor: pointer; text-decoration: none; }
+    .hd-auth-switch a { color: #8fb6ff; cursor: pointer; text-decoration: none; }
     .hd-auth-switch a:hover { text-decoration: underline; }
 
     /* Nav user pill */
@@ -149,7 +152,7 @@ function injectModalStyles() {
     }
     .hd-nav-avatar {
       width: 30px; height: 30px; border-radius: 50%;
-      background: linear-gradient(135deg, #2563eb, #7c3aed);
+      background: linear-gradient(135deg, #35d6f0, #8b6cff);
       display: flex; align-items: center; justify-content: center;
       font-size: 0.75rem; font-weight: 700; color: #fff; flex-shrink: 0;
     }
@@ -160,10 +163,10 @@ function injectModalStyles() {
     .hd-nav-dashboard-btn {
       font-size: 0.78rem; font-weight: 600; color: #eef0f8;
       padding: 6px 12px; border-radius: 999px;
-      background: rgba(37,99,235,0.15); border: 1px solid rgba(37,99,235,0.25);
+      background: rgba(91,140,255,0.15); border: 1px solid rgba(91,140,255,0.25);
       text-decoration: none; transition: background 150ms;
     }
-    .hd-nav-dashboard-btn:hover { background: rgba(37,99,235,0.28); }
+    .hd-nav-dashboard-btn:hover { background: rgba(91,140,255,0.28); }
     .hd-nav-logout-btn {
       font-size: 0.78rem; font-weight: 500; color: #8a96b8;
       padding: 6px 10px; border-radius: 999px; border: none;
@@ -179,17 +182,17 @@ function injectModalStyles() {
     .hd-sidebar-auth-guest {
       font-size: 0.78rem; color: #48506a; line-height: 1.55; margin-bottom: 10px;
     }
-    .hd-sidebar-auth-guest strong { color: #60a5fa; }
+    .hd-sidebar-auth-guest strong { color: #8fb6ff; }
     .hd-sidebar-login-btn {
       width: 100%; padding: 9px; border-radius: 9px; font-size: 0.83rem; font-weight: 600;
-      border: 1px solid rgba(37,99,235,0.3); background: rgba(37,99,235,0.1);
-      color: #60a5fa; cursor: pointer; transition: background 150ms, border-color 150ms;
+      border: 1px solid rgba(91,140,255,0.3); background: rgba(91,140,255,0.1);
+      color: #8fb6ff; cursor: pointer; transition: background 150ms, border-color 150ms;
     }
-    .hd-sidebar-login-btn:hover { background: rgba(37,99,235,0.18); border-color: rgba(37,99,235,0.5); }
+    .hd-sidebar-login-btn:hover { background: rgba(91,140,255,0.18); border-color: rgba(91,140,255,0.5); }
     .hd-sidebar-user { display: flex; flex-direction: column; gap: 6px; }
     .hd-sidebar-user-email { font-size: 0.78rem; color: #8a96b8; }
     .hd-sidebar-dashboard-link {
-      font-size: 0.82rem; font-weight: 600; color: #60a5fa;
+      font-size: 0.82rem; font-weight: 600; color: #8fb6ff;
       text-decoration: none; display: flex; align-items: center; gap: 6px;
     }
     .hd-sidebar-dashboard-link:hover { text-decoration: underline; }
@@ -203,17 +206,17 @@ function injectModalStyles() {
     .hd-save-banner {
       display: flex; align-items: center; justify-content: space-between; gap: 12px;
       padding: 13px 16px; border-radius: 11px; margin-top: 12px;
-      background: rgba(37,99,235,0.1); border: 1px solid rgba(37,99,235,0.22);
+      background: rgba(91,140,255,0.1); border: 1px solid rgba(91,140,255,0.22);
     }
     .hd-save-banner-text { font-size: 0.82rem; color: #8a96b8; line-height: 1.45; }
     .hd-save-banner-text strong { color: #eef0f8; }
     .hd-save-btn {
       flex-shrink: 0; padding: 8px 14px; border-radius: 8px; font-size: 0.8rem;
-      font-weight: 700; border: none; background: #2563eb; color: #fff;
+      font-weight: 700; border: none; background: #5b8cff; color: #fff;
       cursor: pointer; transition: background 150ms;
       white-space: nowrap;
     }
-    .hd-save-btn:hover { background: #1d4ed8; }
+    .hd-save-btn:hover { background: #4272e6; }
     .hd-save-btn:disabled { opacity: 0.55; cursor: not-allowed; }
     .hd-save-btn.saved { background: #16a34a; }
     /* Auto-save status states */
@@ -241,11 +244,11 @@ function buildModal() {
   _modalEl.className = "hd-auth-overlay";
   _modalEl.setAttribute("role", "dialog");
   _modalEl.setAttribute("aria-modal", "true");
-  _modalEl.setAttribute("aria-label", "Sign in to HiringDesk");
+  _modalEl.setAttribute("aria-label", "Sign in to PathAscent");
   _modalEl.innerHTML = `
     <div class="hd-auth-box">
       <button class="hd-auth-close" aria-label="Close">✕</button>
-      <p class="hd-auth-logo">HiringDesk</p>
+      <p class="hd-auth-logo"><img src="/assets/pathascent-mark.png" alt="" style="height:22px;width:auto;display:block" />PathAscent</p>
       <h2 class="hd-auth-title" id="hd-modal-title">Welcome back</h2>
       <p class="hd-auth-sub" id="hd-modal-sub">Sign in to save your progress and track applications.</p>
 
@@ -271,7 +274,7 @@ function buildModal() {
           </select>
         </div>
         <p class="hd-auth-free-note" id="hd-free-note" style="display:none">
-          <strong>HiringDesk is free to use without an account.</strong> Creating one just lets you save your history and track applications over time.
+          <strong>PathAscent is free to use without an account.</strong> Creating one just lets you save your history and track applications over time.
         </p>
         <button type="submit" class="hd-auth-btn" id="hd-auth-submit">Sign In</button>
         <p class="hd-auth-error" id="hd-auth-error"></p>
@@ -425,7 +428,7 @@ export function initSidebarAuth(user, { dashboardHref = "/dashboard-applicant.ht
           <span class="hd-sidebar-user-email">${user.email}</span>
         </div>
         <a href="${dashboardHref}" class="hd-sidebar-dashboard-link">
-          <svg width="13" height="13" viewBox="0 0 12 12" fill="none"><rect x="1" y="1" width="4" height="4" rx="1" stroke="#60a5fa" stroke-width="1.2"/><rect x="7" y="1" width="4" height="4" rx="1" stroke="#60a5fa" stroke-width="1.2"/><rect x="1" y="7" width="4" height="4" rx="1" stroke="#60a5fa" stroke-width="1.2"/><rect x="7" y="7" width="4" height="4" rx="1" stroke="#60a5fa" stroke-width="1.2"/></svg>
+          <svg width="13" height="13" viewBox="0 0 12 12" fill="none"><rect x="1" y="1" width="4" height="4" rx="1" stroke="#8fb6ff" stroke-width="1.2"/><rect x="7" y="1" width="4" height="4" rx="1" stroke="#8fb6ff" stroke-width="1.2"/><rect x="1" y="7" width="4" height="4" rx="1" stroke="#8fb6ff" stroke-width="1.2"/><rect x="7" y="7" width="4" height="4" rx="1" stroke="#8fb6ff" stroke-width="1.2"/></svg>
           My Dashboard
         </a>
         <button class="hd-sidebar-logout-btn">Sign out</button>

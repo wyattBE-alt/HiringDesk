@@ -1,7 +1,7 @@
-// HiringDesk Service Worker
+// PathAscent Service Worker
 // Caches static assets for fast loads; always fetches API calls fresh.
 
-const CACHE_NAME = 'hiringdesk-v1';
+const CACHE_NAME = 'pathascent-v1';
 const STATIC_ASSETS = [
   '/',
   '/index.html',

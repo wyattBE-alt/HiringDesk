@@ -1,6 +1,6 @@
 /* ═══════════════════════════════════════════════════════════
-   HiringDesk — Design System v3
-   Black × White × Blue
+   PathAscent — Design System v4
+   Deep navy × cyan → violet ascent
    Syne (display) · Inter (body)
 ═══════════════════════════════════════════════════════════ */
 
@@ -10,7 +10,7 @@
 
 :root {
   /* Surfaces — glass-ready rgba so backdrop-filter works */
-  --bg:        #000005;
+  --bg:        #03050b;
   --surface:   rgba(6, 8, 20, 0.72);
   --surface-2: rgba(10, 12, 26, 0.68);
   --surface-3: rgba(16, 18, 34, 0.82);
@@ -26,10 +26,28 @@
   --line-strong: rgba(255, 255, 255, 0.11);
   --line-focus:  rgba(255, 255, 255, 0.20);
 
-  /* Blue — the only accent */
-  --blue:     #2563eb;
-  --blue-lt:  #60a5fa;
-  --blue-dim: rgba(37, 99, 235, 0.12);
+  /* PathAscent brand — cyan → violet ascent.
+     --blue* kept as token names (used 36x) but remapped to the periwinkle bridge
+     so the whole app shifts to the new identity automatically. */
+  --blue:     #5b8cff;   /* periwinkle bridge — the single solid accent */
+  --blue-lt:  #8fb6ff;   /* lighter, for links/text on dark */
+  --blue-dim: rgba(91, 140, 255, 0.12);
+
+  /* Gradient endpoints */
+  --cyan:     #35d6f0;
+  --cyan-lt:  #7fe9fb;
+  --violet:   #8b6cff;
+  --violet-lt:#b1a2ff;
+
+  /* Brand gradient + soft wash + focus ring */
+  --grad:      linear-gradient(120deg, var(--cyan) 0%, #6f8bff 52%, var(--violet) 100%);
+  --grad-soft: linear-gradient(120deg, rgba(53,214,240,0.16), rgba(139,108,255,0.16));
+  --ring:      rgba(111, 139, 255, 0.55);
+
+  /* Brand glows — used sparingly on logo, primary CTA, focus */
+  --glow-cyan:   0 0 28px rgba(53, 214, 240, 0.35);
+  --glow-violet: 0 0 32px rgba(139, 108, 255, 0.38);
+  --glow-brand:  0 0 30px rgba(111, 139, 255, 0.32);
 
   /* Functional — kept minimal */
   --green: #22c55e;
@@ -99,7 +117,7 @@ body {
   inset: 0;
   z-index: 0;
   overflow: hidden;
-  filter: blur(90px);
+  filter: blur(72px) saturate(1.35);
   pointer-events: none;
 }
 
@@ -110,33 +128,33 @@ body {
 }
 
 .orb-1 {
-  width: 1000px; height: 1000px;
-  background: radial-gradient(circle at 40% 40%, rgba(37,99,235,0.5) 0%, transparent 65%);
-  top: -280px; left: -240px;
+  width: 680px; height: 680px;
+  background: radial-gradient(circle at 40% 40%, rgba(34,225,255,0.60) 0%, transparent 55%);
+  top: -240px; left: -200px;
   animation: orb-drift-1 28s ease-in-out infinite alternate;
 }
 .orb-2 {
-  width: 750px; height: 750px;
-  background: radial-gradient(circle at 60% 40%, rgba(109,40,217,0.4) 0%, transparent 65%);
-  top: -80px; right: -160px;
+  width: 600px; height: 600px;
+  background: radial-gradient(circle at 60% 40%, rgba(150,80,255,0.58) 0%, transparent 55%);
+  top: -80px; right: -140px;
   animation: orb-drift-2 34s ease-in-out infinite alternate;
 }
 .orb-3 {
-  width: 550px; height: 550px;
-  background: radial-gradient(circle at 50% 50%, rgba(14,165,233,0.28) 0%, transparent 65%);
-  top: 45%; left: 38%;
+  width: 520px; height: 520px;
+  background: radial-gradient(circle at 50% 50%, rgba(80,215,255,0.16) 0%, transparent 60%);
+  top: 45%; left: 40%;
   animation: orb-drift-3 22s ease-in-out infinite alternate;
 }
 .orb-4 {
-  width: 850px; height: 850px;
-  background: radial-gradient(circle at 45% 55%, rgba(67,56,202,0.35) 0%, transparent 65%);
-  bottom: -220px; left: -130px;
+  width: 640px; height: 640px;
+  background: radial-gradient(circle at 45% 55%, rgba(124,70,245,0.50) 0%, transparent 55%);
+  bottom: -200px; left: -120px;
   animation: orb-drift-4 38s ease-in-out infinite alternate;
 }
 .orb-5 {
-  width: 650px; height: 650px;
-  background: radial-gradient(circle at 55% 45%, rgba(59,130,246,0.32) 0%, transparent 65%);
-  bottom: -80px; right: -80px;
+  width: 540px; height: 540px;
+  background: radial-gradient(circle at 55% 45%, rgba(96,120,255,0.46) 0%, transparent 55%);
+  bottom: -70px; right: -70px;
   animation: orb-drift-5 26s ease-in-out infinite alternate;
 }
 
@@ -232,10 +250,13 @@ body::before {
 /* ── Brand ─────────────────────────────────────────────── */
 
 .brand-block h1 {
+  display: flex;
+  align-items: center;
+  gap: 11px;
   font-family: var(--font-display);
   font-weight: 800;
   font-size: 2rem;
-  letter-spacing: -0.05em;
+  letter-spacing: -0.03em;
   line-height: 0.92;
   color: var(--text);
   margin-bottom: 10px;
@@ -577,7 +598,7 @@ body::before {
   width: 500px;
   height: 500px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(37, 99, 235, 0.07) 0%, transparent 68%);
+  background: radial-gradient(circle, rgba(111, 139, 255, 0.07) 0%, transparent 68%);
   top: -140px;
   right: -140px;
   pointer-events: none;
@@ -2237,3 +2258,12 @@ body::before {
     grid-template-columns: 64px 1fr;
   }
 }
+
+/* ── Brand mark (PathAscent logo) ─────────────────────────── */
+.brand-mark {
+  flex: none;
+  height: 44px;
+  width: auto;
+  display: block;
+}
+.brand-lockup { display: inline-flex; align-items: center; gap: 10px; }

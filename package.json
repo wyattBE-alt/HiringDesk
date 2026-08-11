@@ -8,6 +8,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --env-file=.env --watch server.js",
+    "preview": "node --env-file=.env --env-file=.env.local server.js",
     "electron": "electron .",
     "dist": "electron-builder",
     "dist:mac": "electron-builder --mac",

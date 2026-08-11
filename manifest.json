@@ -1,13 +1,13 @@
 {
-  "name": "HiringDesk",
-  "short_name": "HiringDesk",
+  "name": "PathAscent",
+  "short_name": "PathAscent",
   "description": "AI-powered resume matching and candidate ranking",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait-primary",
-  "background_color": "#07090f",
-  "theme_color": "#4f8ef5",
+  "background_color": "#05070f",
+  "theme_color": "#6f8bff",
   "categories": ["business", "productivity"],
   "icons": [
     { "src": "/assets/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },

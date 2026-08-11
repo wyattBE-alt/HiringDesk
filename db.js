@@ -118,13 +118,19 @@ await pool.query(`
   -- Idempotent migration for tables created before job_query/top_score existed
   ALTER TABLE resume_snapshots ADD COLUMN IF NOT EXISTS job_query TEXT;
   ALTER TABLE resume_snapshots ADD COLUMN IF NOT EXISTS top_score INTEGER;
+
+  -- Candidate ownership: resumes a recruiter uploads are private to that recruiter.
+  -- opt_in = 1 candidates (seekers who consented) remain shared across all recruiters.
+  ALTER TABLE candidates ADD COLUMN IF NOT EXISTS owner_user_id INTEGER;
+  CREATE INDEX IF NOT EXISTS idx_candidates_owner ON candidates(owner_user_id);
+  CREATE INDEX IF NOT EXISTS idx_candidates_optin ON candidates(opt_in);
 `);
 
 // ─────────────────────────────────────────────
 //  RECRUITER — JOBS + CANDIDATES + RANKINGS
 // ─────────────────────────────────────────────
 
-export async function saveJobAndCandidates(job, candidates, resumeTexts) {
+export async function saveJobAndCandidates(job, candidates, resumeTexts, ownerUserId = null) {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
@@ -144,8 +150,8 @@ export async function saveJobAndCandidates(job, candidates, resumeTexts) {
     for (const c of candidates) {
       const resumeText = (resumeTexts[c.resumeIndex] || "").slice(0, 20000);
       const candidateResult = await client.query(
-        `INSERT INTO candidates (name, current_title, location, contact_info, years_experience, skills, certifications, resume_text)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+        `INSERT INTO candidates (name, current_title, location, contact_info, years_experience, skills, certifications, resume_text, owner_user_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
         [
           c.name || "Unknown",
           c.currentTitle || null,
@@ -155,6 +161,7 @@ export async function saveJobAndCandidates(job, candidates, resumeTexts) {
           JSON.stringify(c.matchedSkills || []),
           JSON.stringify(c.matchedCertifications || []),
           resumeText,
+          ownerUserId,
         ]
       );
       const candidateId = candidateResult.rows[0].id;
@@ -218,7 +225,9 @@ export async function getHiringSignals() {
   };
 }
 
-export async function getPastCandidates() {
+export async function getPastCandidates(recruiterId) {
+  // A recruiter only resurfaces candidates they themselves uploaded (private history).
+  if (!recruiterId) return [];
   // Dedupe by contact_info (fall back to id), keeping each candidate's best ranking score.
   const { rows } = await pool.query(`
     SELECT * FROM (
@@ -232,11 +241,12 @@ export async function getPastCandidates() {
         FROM rankings GROUP BY candidate_id
       ) agg ON agg.candidate_id = c.id
       WHERE c.resume_text IS NOT NULL AND c.resume_text <> ''
+        AND c.owner_user_id = $1
       ORDER BY COALESCE(NULLIF(c.contact_info, ''), c.id::text), agg.best_score DESC
     ) t
     ORDER BY best_score DESC
     LIMIT 300
-  `);
+  `, [recruiterId]);
   return rows.map(r => ({
     id: r.id,
     name: r.name,
@@ -252,11 +262,13 @@ export async function getPastCandidates() {
   }));
 }
 
-export async function getCandidateCount() {
+export async function getCandidateCount(recruiterId) {
+  // Count only what this recruiter can see: shared opt-in pool + their own uploads.
   const { rows } = await pool.query(`
     SELECT COUNT(DISTINCT COALESCE(NULLIF(contact_info, ''), id::text)) AS count
     FROM candidates
-  `);
+    WHERE opt_in = 1 OR owner_user_id = $1
+  `, [recruiterId ?? null]);
   return Number(rows[0].count);
 }
 
@@ -413,8 +425,9 @@ export async function getResumeSnapshots(userId) {
 //  RECRUITER TALENT POOL
 // ─────────────────────────────────────────────
 
-export async function getTalentPool({ skills = [], minScore = 50, limit = 100 } = {}) {
-  // Includes opt-in applicants who have no recruiter ranking yet.
+export async function getTalentPool({ recruiterId = null, skills = [], minScore = 50, limit = 100 } = {}) {
+  // Visibility: the shared consented pool (opt_in = 1) PLUS this recruiter's own uploads.
+  // Resumes uploaded by other recruiters are never exposed here.
   // Dedupe by contact_info (fall back to id), keeping the best available score.
   const { rows } = await pool.query(`
     SELECT * FROM (
@@ -433,12 +446,13 @@ export async function getTalentPool({ skills = [], minScore = 50, limit = 100 } 
       ) agg ON agg.candidate_id = c.id
       WHERE c.resume_text IS NOT NULL AND c.resume_text <> ''
         AND (agg.candidate_id IS NOT NULL OR c.opt_in = 1)
+        AND (c.opt_in = 1 OR c.owner_user_id = $2)
       ORDER BY COALESCE(NULLIF(c.contact_info, ''), c.id::text), best_score DESC
     ) t
     WHERE best_score >= $1
     ORDER BY best_score DESC
     LIMIT 200
-  `, [minScore]);
+  `, [minScore, recruiterId]);
 
   let results = rows.map(r => ({
     id: r.id,

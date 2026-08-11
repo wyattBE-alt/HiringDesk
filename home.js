@@ -1,5 +1,5 @@
 /* ──────────────────────────────────────────────────────────
-   HiringDesk — Home page interactions
+   PathAscent — Home page interactions
    Emil principle: specify exact properties, never `all`.
    Gate hover effects behind pointer: fine to avoid mobile
    false-positives. Animate transform directly in JS during
