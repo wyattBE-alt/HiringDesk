@@ -75,6 +75,18 @@
     .center h2 { font-family: var(--font-d); font-weight: 800; font-size: 1.6rem; letter-spacing: -0.03em; }
     .center p { color: var(--text-2); font-size: 0.9rem; max-width: 42ch; line-height: 1.6; }
     .center a { color: var(--cyan); }
+    #signinForm { width: 100%; max-width: 300px; display: flex; flex-direction: column; gap: 10px; margin-top: 6px; }
+    #signinForm input {
+      width: 100%; padding: 11px 13px; border-radius: 10px; font-size: 0.9rem;
+      background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12); color: var(--text); outline: none;
+    }
+    #signinForm input:focus { border-color: rgba(111,139,255,0.6); box-shadow: 0 0 0 3px rgba(111,139,255,0.15); }
+    #signinForm button {
+      padding: 11px; border: none; border-radius: 10px; font-size: 0.9rem; font-weight: 700; color: #fff; cursor: pointer;
+      background: linear-gradient(120deg, var(--cyan), #6f8bff 52%, var(--violet)); box-shadow: 0 0 20px rgba(111,139,255,0.3);
+    }
+    #signinForm button:disabled { opacity: 0.55; cursor: not-allowed; }
+    .si-msg { font-size: 0.82rem; min-height: 16px; }
     .hidden { display: none !important; }
     @media (max-width: 620px) { .cols2 { grid-template-columns: 1fr; } .col small { display: none; } }
   </style>
@@ -93,11 +105,17 @@
     <!-- Loading -->
     <div class="center" id="loading"><p>Loading your analytics…</p></div>
 
-    <!-- Locked -->
+    <!-- Locked / sign-in -->
     <div class="center hidden" id="locked">
-      <h2>Restricted</h2>
-      <p id="lockedMsg">This is the owner-only work room. Sign in with an admin account to view analytics.</p>
-      <p><a href="/">← Back to site</a> · <a href="#" id="signinLink">Sign in</a></p>
+      <h2>Work Room</h2>
+      <p id="lockedMsg">Sign in with your admin account to view analytics.</p>
+      <form id="signinForm">
+        <input id="si-email" type="email" placeholder="you@example.com" autocomplete="email" />
+        <input id="si-pw" type="password" placeholder="Password" autocomplete="current-password" />
+        <button type="submit">Sign in</button>
+        <p class="si-msg" id="si-msg"></p>
+      </form>
+      <p style="margin-top:4px"><a href="/">← Back to site</a></p>
     </div>
 
     <!-- Dashboard -->
@@ -211,7 +229,30 @@
       Array.prototype.forEach.call(el("range").children, function (c) { c.classList.toggle("active", c === b); });
       load();
     });
-    el("signinLink").addEventListener("click", function (e) { e.preventDefault(); location.href = "/"; });
+    // Inline sign-in — authenticate right here, then load analytics.
+    el("signinForm").addEventListener("submit", async function (e) {
+      e.preventDefault();
+      var email = el("si-email").value.trim();
+      var pw = el("si-pw").value;
+      var m = el("si-msg");
+      var btn = e.target.querySelector("button");
+      if (!email || !pw) { m.style.color = "#f59e0b"; m.textContent = "Enter your email and password."; return; }
+      btn.disabled = true; m.style.color = "#8a96b8"; m.textContent = "Signing in…";
+      try {
+        var res = await fetch("/api/auth/login", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: email, password: pw })
+        });
+        var data = await res.json().catch(function () { return {}; });
+        if (!res.ok) { btn.disabled = false; m.style.color = "#ef4444"; m.textContent = data.error || "Sign in failed."; return; }
+        localStorage.setItem("hd_token", data.token);
+        TOKEN = data.token;
+        m.textContent = "";
+        load();
+      } catch (err) {
+        btn.disabled = false; m.style.color = "#ef4444"; m.textContent = "Network error. Please try again.";
+      }
+    });
 
     load();
   </script>
