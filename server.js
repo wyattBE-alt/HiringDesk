@@ -116,7 +116,11 @@ async function sendMail({ to, subject, html }) {
     host: process.env.SMTP_HOST,
     port: parseInt(process.env.SMTP_PORT) || 587,
     secure: process.env.SMTP_SECURE === "true",
-    auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
+    auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+    // Fail fast instead of hanging when SMTP is unreachable/misconfigured.
+    connectionTimeout: 8000,
+    greetingTimeout: 8000,
+    socketTimeout: 10000
   });
   await transporter.sendMail({ from: process.env.SMTP_FROM || process.env.SMTP_USER, to, subject, html });
 }
@@ -948,28 +952,30 @@ app.post("/api/auth/forgot", express.json(), async (req, res) => {
     if (!email) return res.status(400).json({ error: "Email is required." });
 
     const reset = await createPasswordReset(email);
+
+    // Respond immediately — never make the client wait on the mail server.
+    res.json({ ok: true, message: "If that email has an account, a reset link is on its way." });
+
+    // Send the email in the background (fire-and-forget).
     if (reset) {
       const link = `${baseUrl(req)}/reset.html?token=${reset.token}`;
       if (smtpConfigured()) {
-        try {
-          await sendMail({
-            to: reset.email,
-            subject: "Reset your PathAscent password",
-            html: `<div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:8px">
-              <h2 style="margin:0 0 12px">Reset your password</h2>
-              <p style="color:#333;line-height:1.6">We received a request to reset your PathAscent password. Click below to set a new one. This link expires in 1 hour.</p>
-              <p style="margin:22px 0"><a href="${link}" style="display:inline-block;background:#5b8cff;color:#fff;padding:12px 26px;border-radius:8px;text-decoration:none;font-weight:600">Reset password</a></p>
-              <p style="color:#888;font-size:12px;line-height:1.6">If you didn't request this, you can safely ignore this email — your password won't change.</p>
-            </div>`
-          });
-        } catch (e) { console.error("Reset email send failed:", e.message); }
+        sendMail({
+          to: reset.email,
+          subject: "Reset your PathAscent password",
+          html: `<div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:8px">
+            <h2 style="margin:0 0 12px">Reset your password</h2>
+            <p style="color:#333;line-height:1.6">We received a request to reset your PathAscent password. Click below to set a new one. This link expires in 1 hour.</p>
+            <p style="margin:22px 0"><a href="${link}" style="display:inline-block;background:#5b8cff;color:#fff;padding:12px 26px;border-radius:8px;text-decoration:none;font-weight:600">Reset password</a></p>
+            <p style="color:#888;font-size:12px;line-height:1.6">If you didn't request this, you can safely ignore this email — your password won't change.</p>
+          </div>`
+        }).catch(e => console.error("Reset email send failed:", e.message));
       } else {
         console.log(`[DEV] Password reset link for ${reset.email}: ${link}`);
       }
     }
-    res.json({ ok: true, message: "If that email has an account, a reset link is on its way." });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    if (!res.headersSent) res.status(500).json({ error: err.message });
   }
 });
 
