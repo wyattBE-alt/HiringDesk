@@ -409,6 +409,7 @@ export function initNav(user) {
       pill.innerHTML = `
         <div class="hd-nav-avatar">${initial}</div>
         <span class="hd-nav-email">${user.email}</span>
+        ${user.isAdmin ? `<a href="/workroom.html" class="hd-nav-dashboard-btn">Work Room</a>` : ""}
         <a href="${dashPath}" class="hd-nav-dashboard-btn">My Dashboard</a>
         <button class="hd-nav-logout-btn">Sign Out</button>
       `;
@@ -462,6 +463,7 @@ export function initSidebarAuth(user, { dashboardHref = "/dashboard-applicant.ht
           <svg width="13" height="13" viewBox="0 0 12 12" fill="none"><rect x="1" y="1" width="4" height="4" rx="1" stroke="#8fb6ff" stroke-width="1.2"/><rect x="7" y="1" width="4" height="4" rx="1" stroke="#8fb6ff" stroke-width="1.2"/><rect x="1" y="7" width="4" height="4" rx="1" stroke="#8fb6ff" stroke-width="1.2"/><rect x="7" y="7" width="4" height="4" rx="1" stroke="#8fb6ff" stroke-width="1.2"/></svg>
           My Dashboard
         </a>
+        ${user.isAdmin ? `<a href="/workroom.html" class="hd-sidebar-dashboard-link">📊 Work Room</a>` : ""}
         <button class="hd-sidebar-logout-btn">Sign out</button>
       </div>
     `;

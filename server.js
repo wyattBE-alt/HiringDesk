@@ -99,9 +99,12 @@ async function resolveUser(req) {
 const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || "")
   .toLowerCase().split(",").map(s => s.trim()).filter(Boolean);
 
+function isAdminEmail(email) {
+  return ADMIN_EMAILS.includes((email || "").toLowerCase());
+}
+
 function requireAdmin(req, res, next) {
-  const email = (req.user?.email || "").toLowerCase();
-  if (!email || !ADMIN_EMAILS.includes(email)) {
+  if (!isAdminEmail(req.user?.email)) {
     return res.status(403).json({ error: "Not authorized." });
   }
   next();
@@ -930,6 +933,7 @@ app.post("/api/auth/login", express.json(), async (req, res) => {
     const { email, password } = req.body;
     if (!email || !password) return res.status(400).json({ error: "Email and password required." });
     const result = await loginUser(email, password);
+    result.user.isAdmin = isAdminEmail(result.user.email);
     recordEvent({ type: "login", userId: result.user.id });
     res.json(result);
   } catch (err) {
@@ -994,7 +998,7 @@ app.post("/api/auth/reset", express.json(), async (req, res) => {
 });
 
 app.get("/api/auth/me", requireAuth, (req, res) => {
-  res.json({ user: req.user });
+  res.json({ user: { ...req.user, isAdmin: isAdminEmail(req.user.email) } });
 });
 
 // ─────────────────────────────────────────────

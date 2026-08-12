@@ -228,6 +228,7 @@
       const initial = user.email[0].toUpperCase();
       navRight.innerHTML = `
         <span class="dash-user-email">${user.email}</span>
+        ${user.isAdmin ? `<a href="/workroom.html" class="dash-back" style="color:#8fb6ff">📊 Work Room</a>` : ""}
         <button class="dash-signout" id="navSignout">Sign out</button>
       `;
       navRight.querySelector("#navSignout").addEventListener("click", logout);
