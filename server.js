@@ -212,10 +212,10 @@ async function extractTextFromBuffer(buffer, originalname) {
 //  APPLICANT SIDE
 // ─────────────────────────────────────────────
 
-async function searchJobs(query, location, numResults = 20, filters = {}) {
+async function searchJobs(query, location, numResults = 12, filters = {}) {
   const searchQuery = location ? `${query} in ${location}` : query;
-  // JSearch returns ~10 jobs/page; fetch enough pages to cover numResults (cap 3 pages).
-  const numPages = Math.min(Math.max(Math.ceil(numResults / 10), 1), 3);
+  // JSearch returns ~10 jobs/page; fetch enough pages to cover numResults (cap 2 pages).
+  const numPages = Math.min(Math.max(Math.ceil(numResults / 10), 1), 2);
   const params = new URLSearchParams({
     query: searchQuery,
     page: "1",
@@ -225,12 +225,20 @@ async function searchJobs(query, location, numResults = 20, filters = {}) {
   if (filters.remoteOnly) params.set("remote_jobs_only", "true");
   if (filters.employmentTypes) params.set("employment_types", filters.employmentTypes);
 
-  const response = await fetch(`https://${JSEARCH_HOST}/search?${params}`, {
-    headers: {
-      "X-RapidAPI-Key": JSEARCH_KEY,
-      "X-RapidAPI-Host": JSEARCH_HOST
-    }
-  });
+  // Time-box the upstream call so a slow JSearch can't hang the whole request.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15000);
+  let response;
+  try {
+    response = await fetch(`https://${JSEARCH_HOST}/search?${params}`, {
+      headers: { "X-RapidAPI-Key": JSEARCH_KEY, "X-RapidAPI-Host": JSEARCH_HOST },
+      signal: controller.signal
+    });
+  } catch (e) {
+    throw new Error(e.name === "AbortError" ? "Job search timed out — please try again." : `Job search request failed: ${e.message}`);
+  } finally {
+    clearTimeout(timer);
+  }
 
   if (!response.ok) {
     const text = await response.text();
@@ -285,8 +293,9 @@ credentialMatches in each jobMatch: for every certification mentioned in the job
     : `claimedCredentials: return [].
 credentialMatches: return [].`;
 
+  const __t0 = Date.now();
   const message = await anthropic.messages.create({
-    model: "claude-sonnet-4-6",
+    model: "claude-haiku-4-5-20251001",
     max_tokens: 8192,
     system: "You are an expert career coach and resume analyst. Return only valid JSON with no markdown fences or extra text.",
     messages: [
@@ -343,10 +352,17 @@ Return a JSON object with this exact structure:
 
 Scoring: 75-100 → qualified | 45-74 → borderline | 0-44 → stretch
 Be honest. Prefer concrete technical skills over soft skills.
+BREVITY (important — keep the response fast and tight):
+- "reason": at most 2 short sentences.
+- "gapPlan": at most 3 short bullet strings.
+- matchedSkills / missingSkills: at most 6 items each.
+- strengths / improvements: exactly 3 short items each.
+- Only include credentialMatches entries when the job explicitly requires a named certification; otherwise return [].
 ${credInstructions}`
       }
     ]
-  });
+  }, { timeout: 85000, maxRetries: 0 });
+  console.log(`[analyze] claude done in ${((Date.now() - __t0) / 1000).toFixed(1)}s, out_tokens=${message.usage?.output_tokens}, jobs=${jobs.length}`);
 
   const text = message.content[0].text;
   const jsonMatch = text.match(/\{[\s\S]*\}/);
@@ -387,7 +403,7 @@ app.post("/api/analyze", upload.single("resumeFile"), async (req, res) => {
 
     let jobs;
     try {
-      jobs = await searchJobs(jobQuery, location, 20, filters);
+      jobs = await searchJobs(jobQuery, location, 6, filters);
     } catch (err) {
       return res.status(502).json({ error: `Job search failed: ${err.message}` });
     }
@@ -453,7 +469,7 @@ app.post("/api/tailor", express.json(), async (req, res) => {
     if (!jobTitle)   return res.status(400).json({ error: "Job title is required." });
 
     const message = await anthropic.messages.create({
-      model: "claude-sonnet-4-6",
+      model: "claude-haiku-4-5-20251001",
       max_tokens: 3500,
       system: "You are an expert resume writer and career coach. Return only valid JSON with no markdown fences or extra text.",
       messages: [{
@@ -509,7 +525,7 @@ Return this exact JSON structure:
 
 Include 2–3 bullets per section for the 2 most relevant experience sections only. No preamble — just the JSON.`
       }]
-    });
+    }, { timeout: 60000, maxRetries: 0 });
 
     const text = message.content[0].text;
     const jsonMatch = text.match(/\{[\s\S]*\}/);
@@ -534,7 +550,7 @@ async function rankCandidatesForJob(job, resumes) {
     .join("\n\n---\n\n");
 
   const message = await anthropic.messages.create({
-    model: "claude-sonnet-4-6",
+    model: "claude-haiku-4-5-20251001",
     max_tokens: 8192,
     system: "You are a senior technical recruiter. Rank candidates strictly by fit. Return only valid JSON with no markdown fences.",
     messages: [
@@ -585,7 +601,7 @@ Factor in location proximity to job location: ${job.location || "not specified"}
 Return up to 25 best candidates only, ranked best-to-worst.`
       }
     ]
-  });
+  }, { timeout: 90000, maxRetries: 0 });
 
   const text = message.content[0].text;
   const jsonMatch = text.match(/\{[\s\S]*\}/);

@@ -80,7 +80,7 @@ analyzeForm.addEventListener("submit", async (e) => {
   if (credentials.length) formData.append("credentials", JSON.stringify(credentials));
   if (document.getElementById("allowRecruiterSearch")?.checked) formData.append("allowRecruiterSearch", "true");
 
-  setStatus("loading", "Searching live job listings and analyzing your resume — this takes about 15–20 seconds…");
+  setStatus("loading", "Searching live jobs and scoring your resume against each one. This can take up to a minute, hang tight…");
   analyzeBtn.disabled = true;
 
   try {
