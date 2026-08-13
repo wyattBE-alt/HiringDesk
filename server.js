@@ -22,6 +22,25 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
+// ── Canonical host redirect ───────────────────────────────────────────────────
+// When CANONICAL_HOST is set (prod), 301 any other public host to it so the brand
+// URL is canonical: the old *.up.railway.app and hiringdesk.com all funnel to
+// pathascent.net. Localhost/preview and internal hosts are left alone.
+const CANONICAL_HOST = (process.env.CANONICAL_HOST || "").toLowerCase().trim();
+if (CANONICAL_HOST) {
+  app.use((req, res, next) => {
+    const host = (req.headers["x-forwarded-host"] || req.headers.host || "").split(":")[0].toLowerCase();
+    if (
+      host && host !== CANONICAL_HOST &&
+      host !== "localhost" && host !== "127.0.0.1" &&
+      !host.endsWith(".railway.internal")
+    ) {
+      return res.redirect(301, `https://${CANONICAL_HOST}${req.originalUrl}`);
+    }
+    next();
+  });
+}
+
 app.use(express.json({ limit: "5mb" }));
 
 // ── Rate limiting ─────────────────────────────────────────────────────────────
