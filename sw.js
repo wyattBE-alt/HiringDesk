@@ -1,7 +1,7 @@
 // PathAscent Service Worker
 // Caches static assets for fast loads; always fetches API calls fresh.
 
-const CACHE_NAME = 'pathascent-v1';
+const CACHE_NAME = 'pathascent-v2';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -32,7 +32,9 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// ── Fetch: network-first for API, cache-first for static ─────────────────────
+// ── Fetch: network-first for everything (cache is an offline fallback) ────────
+// Network-first guarantees users always get the latest deployed code. Cache-first
+// previously served stale HTML/JS/CSS after deploys, which broke the UI.
 
 self.addEventListener('fetch', (event) => {
   const { request } = event;
@@ -40,21 +42,23 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(request.url);
 
-  // Always hit the network for API calls — never serve stale AI results
+  // API calls: always network, never cached.
   if (url.pathname.startsWith('/api/')) {
     event.respondWith(fetch(request));
     return;
   }
 
-  // Static assets: serve from cache, update cache in background
+  // Everything else: try the network first (fresh code), cache the result,
+  // and fall back to cache only when offline.
   event.respondWith(
-    caches.open(CACHE_NAME).then(async (cache) => {
-      const cached = await cache.match(request);
-      const networkPromise = fetch(request).then((response) => {
-        if (response.ok) cache.put(request, response.clone());
+    fetch(request)
+      .then((response) => {
+        if (response.ok) {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+        }
         return response;
-      });
-      return cached || networkPromise;
-    })
+      })
+      .catch(() => caches.match(request))
   );
 });
