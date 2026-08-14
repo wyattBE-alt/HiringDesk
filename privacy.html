@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Privacy Policy — PathAscent</title>
+  <meta name="description" content="How PathAscent handles your resume, account, and usage data." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root { --cyan:#35d6f0; --violet:#8b6cff; --text:#eef0f8; --text-2:#9aa6c4; --muted:#5a628080; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', system-ui, sans-serif; background: #05070f; color: var(--text); line-height: 1.7; }
+    body::before { content:''; position:fixed; inset:0; z-index:0; pointer-events:none;
+      background: radial-gradient(600px circle at 12% -5%, rgba(53,214,240,0.14), transparent 55%),
+                  radial-gradient(600px circle at 100% 105%, rgba(139,108,255,0.14), transparent 55%); }
+    .wrap { position: relative; z-index: 1; max-width: 720px; margin: 0 auto; padding: 40px 24px 80px; }
+    .brand { display: inline-flex; align-items: center; gap: 9px; text-decoration: none; margin-bottom: 34px; }
+    .brand img { height: 30px; width: auto; display: block; filter: drop-shadow(0 0 7px rgba(111,139,255,0.45)); }
+    .brand b { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 1.15rem; letter-spacing: -0.03em; color: #fff; }
+    h1 { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 2rem; letter-spacing: -0.03em; margin-bottom: 6px; }
+    .updated { color: var(--muted); font-size: 0.85rem; margin-bottom: 30px; }
+    h2 { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 1.15rem; margin: 30px 0 8px; letter-spacing: -0.02em; }
+    p, li { color: var(--text-2); font-size: 0.95rem; }
+    ul { margin: 8px 0 8px 20px; }
+    li { margin-bottom: 6px; }
+    a { color: var(--cyan); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    strong { color: var(--text); }
+    .foot { margin-top: 44px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.08); font-size: 0.85rem; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <a class="brand" href="/"><img src="/assets/pathascent-mark.png" alt="" /><b>PathAscent</b></a>
+    <h1>Privacy Policy</h1>
+    <p class="updated">Last updated: August 2026</p>
+
+    <p>PathAscent helps job seekers match their resume to real roles and helps recruiters rank candidates. This page explains what we collect, why, and the choices you have. We keep it plain.</p>
+
+    <h2>What we collect</h2>
+    <ul>
+      <li><strong>Resume content</strong> — the text or file you paste or upload, so our AI can score your fit and suggest improvements.</li>
+      <li><strong>Account details</strong> — your email and a securely hashed password, if you create an account.</li>
+      <li><strong>Activity you save</strong> — job applications you log and resume-score snapshots, so you can track progress over time.</li>
+      <li><strong>Anonymous usage</strong> — basic, cookie-free page-view counts to understand what's working. No cross-site tracking, no ad networks.</li>
+    </ul>
+
+    <h2>How we use it</h2>
+    <ul>
+      <li>To run the AI analysis you requested (fit scoring, gap plans, resume tailoring) and to show your saved history.</li>
+      <li>Resume text is sent to our AI provider (Anthropic) solely to generate your results.</li>
+      <li>We do <strong>not</strong> sell your data or share it with advertisers.</li>
+    </ul>
+
+    <h2>The Talent Pool (opt-in)</h2>
+    <p>Recruiters only see candidates who <strong>explicitly opt in</strong> by checking "Allow recruiters to find me," plus their own uploaded candidates. If you don't opt in, your resume is never surfaced to recruiters. Resumes a recruiter uploads stay private to that recruiter.</p>
+
+    <h2>Storage &amp; security</h2>
+    <p>Data is stored in a managed PostgreSQL database. Passwords are hashed (scrypt) and never stored in plain text. Access is protected by session tokens that expire.</p>
+
+    <h2>Your choices</h2>
+    <ul>
+      <li>Use the core tools without an account — resume analysis works without signing up.</li>
+      <li>Delete saved applications and snapshots from your dashboard at any time.</li>
+      <li>Request account deletion by emailing us (below).</li>
+    </ul>
+
+    <h2>Contact</h2>
+    <p>Questions or requests: <a href="mailto:privacy@pathascent.net">privacy@pathascent.net</a></p>
+
+    <p class="foot">This policy may be updated as the product evolves; material changes will be reflected here with a new date. <a href="/">← Back to PathAscent</a></p>
+  </div>
+</body>
+</html>

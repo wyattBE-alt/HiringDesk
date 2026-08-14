@@ -16,6 +16,18 @@
     <!-- SEO -->
     <meta name="description" content="Paste your resume, search a role, and instantly see where you qualify — with an AI gap-closing plan." />
 
+    <!-- Open Graph / social share -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="PathAscent" />
+    <meta property="og:title" content="PathAscent — See Your Real Fit Score" />
+    <meta property="og:description" content="Paste your resume, search a role, and instantly see where you qualify — with an AI gap-closing plan." />
+    <meta property="og:image" content="https://pathascent.net/assets/og-image.png" />
+    <meta property="og:url" content="https://pathascent.net/index.html" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="PathAscent — See Your Real Fit Score" />
+    <meta name="twitter:description" content="Paste your resume, search a role, and instantly see where you qualify." />
+    <meta name="twitter:image" content="https://pathascent.net/assets/og-image.png" />
+
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet" href="./styles.css" />
@@ -53,12 +65,15 @@
             </div>
 
             <label class="field-label" for="resumeFile">Upload File</label>
-            <input
-              id="resumeFile"
-              class="input-shell"
-              type="file"
-              accept=".txt,.md,.pdf,.html,.htm"
-            />
+            <label class="file-drop" id="fileDrop">
+              <input id="resumeFile" type="file" accept=".txt,.md,.pdf,.html,.htm" hidden />
+              <svg class="file-drop-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M12 16V4m0 0L8 8m4-4 4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+              </svg>
+              <span class="file-drop-text" id="fileDropText">Drop your resume or <span class="file-drop-link">browse</span></span>
+              <span class="file-drop-hint">PDF · TXT · MD · HTML</span>
+            </label>
 
             <label class="field-label" for="resumeText">Or Paste Resume Text</label>
             <textarea
@@ -66,6 +81,7 @@
               class="input-shell textarea-shell"
               placeholder="Paste your full resume here..."
             ></textarea>
+            <button type="button" id="tryDemoBtn" class="try-demo-btn">✨ Try a sample resume</button>
           </section>
 
           <!-- ── Credentials panel ── -->
@@ -144,6 +160,8 @@
           </div>
           <ul id="scoreHistoryList" class="score-history-list"></ul>
         </section>
+
+        <p class="sidebar-footer">© 2026 PathAscent · <a href="/privacy.html">Privacy</a></p>
       </aside>
 
       <main class="main-stage">

@@ -8,6 +8,70 @@ const resultsState = document.getElementById("resultsState");
 const SCORE_HISTORY_KEY = "hiringdesk_score_history";
 let lastJobQuery = "";
 
+// ── File drop zone: show filename + drag-and-drop ────────────────────────────
+(function initFileDrop() {
+  const drop = document.getElementById("fileDrop");
+  const input = document.getElementById("resumeFile");
+  const textEl = document.getElementById("fileDropText");
+  if (!drop || !input || !textEl) return;
+
+  function showFile() {
+    const f = input.files && input.files[0];
+    if (f) {
+      textEl.textContent = f.name;
+      drop.classList.add("has-file");
+    } else {
+      textEl.innerHTML = 'Drop your resume or <span class="file-drop-link">browse</span>';
+      drop.classList.remove("has-file");
+    }
+  }
+  input.addEventListener("change", showFile);
+
+  ["dragenter", "dragover"].forEach(ev =>
+    drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add("dragover"); }));
+  ["dragleave", "drop"].forEach(ev =>
+    drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove("dragover"); }));
+  drop.addEventListener("drop", e => {
+    if (e.dataTransfer && e.dataTransfer.files.length) {
+      input.files = e.dataTransfer.files;
+      showFile();
+    }
+  });
+})();
+
+// ── "Try a sample resume" — prefill so a new user can run it instantly ───────
+(function initTryDemo() {
+  const btn = document.getElementById("tryDemoBtn");
+  if (!btn) return;
+  const SAMPLE = `Jordan Rivera
+Software Engineer — San Francisco, CA
+
+EXPERIENCE
+Senior Software Engineer, Brightlane (2021–2024)
+- Built and shipped customer-facing features in React and TypeScript for a SaaS platform serving 40k users.
+- Designed REST and GraphQL APIs in Node.js; cut average response time 38% by adding Redis caching.
+- Led migration from a monolith to AWS (ECS, Lambda, RDS), improving deploy frequency from weekly to daily.
+
+Software Engineer, Nova Labs (2019–2021)
+- Developed internal tools with React, Express, and PostgreSQL.
+- Wrote unit and integration tests (Jest), raising coverage from 45% to 82%.
+
+SKILLS
+JavaScript, TypeScript, React, Node.js, Express, PostgreSQL, AWS, Docker, REST, GraphQL, CI/CD
+
+EDUCATION
+BS Computer Science, UC Davis (2019)`;
+  btn.addEventListener("click", () => {
+    const ta = document.getElementById("resumeText");
+    const jq = document.getElementById("jobQuery");
+    if (ta) ta.value = SAMPLE;
+    if (jq && !jq.value.trim()) jq.value = "Software Engineer";
+    if (ta) ta.focus();
+    btn.textContent = "✓ Sample loaded — hit Build My Profile";
+    setTimeout(() => { btn.textContent = "✨ Try a sample resume"; }, 3000);
+  });
+})();
+
 // ── Credential management ────────────────────────────────────────────────────
 
 document.getElementById("addCredentialBtn").addEventListener("click", () => {
